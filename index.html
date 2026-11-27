@@ -14,7 +14,7 @@
   /* 🐞 the very first script: catches every error from the first millisecond, even if the app fails to start */
   (function () {
     var KEY = 'kurdish_errlog_v1', SES = 'kurdish_session_v1', buf = [];
-    window.__APP_BUILD__ = '2026-11-27 14:18';
+    window.__APP_BUILD__ = '2026-11-27 14:44';
     function load() { try { var v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
     function save(list) { try { localStorage.setItem(KEY, JSON.stringify(list.slice(-300))); } catch (e) { try { localStorage.setItem(KEY, JSON.stringify(list.slice(-60))); } catch (e2) {} } }
     function ctx() { try { return window.__klogCtx ? window.__klogCtx() : ''; } catch (e) { return ''; } }
@@ -21312,7 +21312,17 @@ function pvAppear(force) {
   settings.pvDay = todayKey(); saveSettings();
   root.insertAdjacentHTML('beforeend', `<button class="pv-guest" data-pv-open><div class="pv-bub">سڵاو! من <b>${escapeHtml(P.n)}</b>م 🪶<br>هاتووم دەربارەی خوێندنەوەکەت قسەیەکت لەگەڵ بکەم...</div>${pvFigure(P)}</button>`);
   try { audioEngine.playSwoosh && audioEngine.playSwoosh(0.2, 0.2); } catch {}
+  // never stand on the room cat (both must stay tappable)
+  const dodge = () => {
+    const g = root.querySelector('.pv-guest'), c = root.querySelector('.rx-cat'); if (!g || !c || !g.isConnected) return;
+    g.style.left = '';
+    const a = g.getBoundingClientRect(), b = c.getBoundingClientRect(), R = root.getBoundingClientRect();
+    if (a.right > b.left && a.left < b.right && a.bottom > b.top && a.top < b.bottom) g.style.left = Math.min(R.width - a.width - 6, b.right - R.left + 10) + 'px';
+  };
+  setTimeout(dodge, 1300); if (!pv._dodgeOn) { pv._dodgeOn = 1; window.addEventListener('resize', () => setTimeout(() => { const r = document.querySelector('#bookshelf-grid .lib.rm'); if (r && r.querySelector('.pv-guest')) dodge2(); }, 200)); }
+  pv._dodge = dodge;
 }
+function dodge2() { try { pv._dodge && pv._dodge(); } catch {} }
 async function openPoet() {
   const P = pv.P || pvPick(); pv.P = P;
   closeAllPanels(); openModal('modal-pv');
