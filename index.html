@@ -14,7 +14,7 @@
   /* 🐞 the very first script: catches every error from the first millisecond, even if the app fails to start */
   (function () {
     var KEY = 'kurdish_errlog_v1', SES = 'kurdish_session_v1', buf = [];
-    window.__APP_BUILD__ = '2026-11-27 14:44';
+    window.__APP_BUILD__ = '2026-11-27 15:01';
     function load() { try { var v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
     function save(list) { try { localStorage.setItem(KEY, JSON.stringify(list.slice(-300))); } catch (e) { try { localStorage.setItem(KEY, JSON.stringify(list.slice(-60))); } catch (e2) {} } }
     function ctx() { try { return window.__klogCtx ? window.__klogCtx() : ''; } catch (e) { return ''; } }
@@ -2471,6 +2471,35 @@ const AMBIENTS = {
   night: { icon: '🌙', label: 'شەوی هێمن و سیسرک' }
 };
 
+/* iPad/iPhone: every microphone use (reading-together calls, voice questions, recordings…) first switches the
+   audio session to 'play-and-record' — in 'playback' WebKit throws «AudioSession category is not compatible
+   with audio capture». When the last microphone stops, it goes back to 'playback'. */
+const KU_MIC_LIVE = new Set();
+function kuMicBusy() { for (const t of KU_MIC_LIVE) { if (t.readyState === 'live') return true; KU_MIC_LIVE.delete(t); } return false; }
+(function kuMicSessionGuard() {
+  const md = navigator.mediaDevices; if (!md || !md.getUserMedia || md.__kuMic) return;
+  md.__kuMic = 1;
+  const orig = md.getUserMedia.bind(md), AS = () => navigator.audioSession;
+  const rec = () => { try { if (AS() && AS().type !== 'play-and-record') AS().type = 'play-and-record'; } catch {} };
+  const back = () => setTimeout(() => { if (!kuMicBusy()) { try { if (AS() && AS().type === 'play-and-record') AS().type = 'playback'; } catch {} } }, 400);
+  md.getUserMedia = async function (c) {
+    const audio = !!(c && c.audio);
+    if (audio) rec();                                  // still inside the tap
+    let st;
+    try { st = await orig(c); }
+    catch (e) {
+      if (!(audio && e && e.name === 'InvalidStateError' && AS())) throw e;
+      rec(); st = await orig(c);                       // something switched it back in between → once more
+    }
+    if (audio) st.getAudioTracks().forEach((t) => {
+      KU_MIC_LIVE.add(t);
+      t.addEventListener('ended', back);
+      const stop = t.stop.bind(t); t.stop = () => { stop(); back(); };
+    });
+    return st;
+  };
+})();
+
 class CozyAudioEngine {
   constructor() { this.ctx = null; this.master = null; this.ambient = {}; this.unlocked = false; }
 
@@ -2494,7 +2523,8 @@ class CozyAudioEngine {
 
   /** Must run inside a user gesture (iOS/iPadOS). Also makes sound play with the iPhone silent switch handled by the system. */
   unlock() {
-    try { if (navigator.audioSession) navigator.audioSession.type = 'playback'; } catch {}
+    // 'playback' keeps book voices going, but iPad then refuses the microphone → keep 'play-and-record' while a mic is on
+    try { if (navigator.audioSession) navigator.audioSession.type = (typeof kuMicBusy === 'function' && kuMicBusy()) ? 'play-and-record' : 'playback'; } catch {}
     if (!this.ensure()) return;
     if (!this.unlocked) {
       try {
@@ -19884,6 +19914,7 @@ async function nrMicWhy(e, quiet) {
     NotReadableError: '🎙️ مایکرۆفۆنەکە بە دەستی ئەپێکی ترەوەیە (پەیوەندی، FaceTime، تۆمارکەر...) — ئەوە دابخە و 🎙️ دابگرە',
     AbortError: '🎙️ مایکرۆفۆنەکە بە دەستی ئەپێکی ترەوەیە — ئەوە دابخە و 🎙️ دابگرە',
     NotFoundError: '🎙️ هیچ مایکرۆفۆنێک نەدۆزرایەوە',
+    InvalidStateError: '🎙️ دەنگی iPad هێشتا لە دۆخی «تەنها لێدان»ـە — چرکەیەک چاوەڕێ بکە و 🎙️ دابگرە',
     NoMediaDevices: '🎙️ ئەم وێبگەڕە ڕێگە بە مایکرۆفۆن نادات',
   }[name] || `🎙️ مایکرۆفۆن کار ناکات (${name})`;
   showToast(msg, 'error');
