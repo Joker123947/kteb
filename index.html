@@ -14,7 +14,7 @@
   /* 🐞 the very first script: catches every error from the first millisecond, even if the app fails to start */
   (function () {
     var KEY = 'kurdish_errlog_v1', SES = 'kurdish_session_v1', buf = [];
-    window.__APP_BUILD__ = '2026-11-27 21:58';
+    window.__APP_BUILD__ = '2026-11-27 22:31';
     function load() { try { var v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
     function save(list) { try { localStorage.setItem(KEY, JSON.stringify(list.slice(-300))); } catch (e) { try { localStorage.setItem(KEY, JSON.stringify(list.slice(-60))); } catch (e2) {} } }
     function ctx() { try { return window.__klogCtx ? window.__klogCtx() : ''; } catch (e) { return ''; } }
@@ -2485,13 +2485,17 @@ function kuMicWhy(e) {
     AbortError: '🎤 مایکرۆفۆنەکە بە دەستی ئەپێکی ترەوەیە — ئەوە دابخە',
     NotFoundError: '🎤 هیچ مایکرۆفۆنێک نەدۆزرایەوە' })[n] || `🎤 مایکرۆفۆن نەکرایەوە (${n || 'Error'})`;
 }
+/** iPad: once WebKit is put in 'playback' it may refuse to leave it while sound is active → the microphone breaks.
+    So by default stay in 'auto' (WebKit then picks play-and-record by itself when a mic opens).
+    Only if the user wants app sounds even with the iPhone silent switch do we use 'playback'. */
+function kuBaseSession() { try { return (typeof settings !== 'undefined' && settings && settings.silentSound) ? 'playback' : 'auto'; } catch { return 'auto'; } }
 function kuMicBusy() { for (const t of KU_MIC_LIVE) { if (t.readyState === 'live') return true; KU_MIC_LIVE.delete(t); } return false; }
 (function kuMicSessionGuard() {
   const md = navigator.mediaDevices; if (!md || !md.getUserMedia || md.__kuMic) return;
   md.__kuMic = 1;
   const orig = md.getUserMedia.bind(md), AS = () => navigator.audioSession;
   const rec = () => { try { if (AS() && AS().type !== 'play-and-record') AS().type = 'play-and-record'; } catch {} };
-  const back = () => setTimeout(() => { if (!kuMicBusy()) { try { if (AS() && AS().type === 'play-and-record') AS().type = 'playback'; } catch {} } }, 400);
+  const back = () => setTimeout(() => { if (!kuMicBusy()) { try { if (AS() && AS().type === 'play-and-record') AS().type = kuBaseSession(); } catch {} } }, 400);
   md.getUserMedia = async function (c) {
     const audio = !!(c && c.audio);
     if (audio) rec();                                  // still inside the tap
@@ -2543,7 +2547,7 @@ class CozyAudioEngine {
   /** Must run inside a user gesture (iOS/iPadOS). Also makes sound play with the iPhone silent switch handled by the system. */
   unlock() {
     // 'playback' keeps book voices going, but iPad then refuses the microphone → keep 'play-and-record' while a mic is on
-    try { if (navigator.audioSession) navigator.audioSession.type = (typeof kuMicBusy === 'function' && kuMicBusy()) ? 'play-and-record' : 'playback'; } catch {}
+    try { const AS = navigator.audioSession, want = (typeof kuMicBusy === 'function' && kuMicBusy()) ? 'play-and-record' : kuBaseSession(); if (AS && AS.type !== want) AS.type = want; } catch {}
     if (!this.ensure()) return;
     if (!this.unlocked) {
       try {
@@ -23102,7 +23106,7 @@ function initPart16c() {
   // the new switches in ⚙️
   try {
     const sec = USET.find((x) => x[0] === 'read');
-    sec[2].push(['hlSnap', 'toggle', '🖍️ هایلایتەری زیرەک (خۆی دەچێتە سەر دێڕەکان)', null, true], ['twoFingerUndo', 'toggle', '✌️ دوو پەنجە = گەڕاندنەوە', null, true], ['ocrAhead', 'toggle', '📷 OCR ی لاپەڕەکانی داهاتوو بە بێدەنگی', null, true]);
+    sec[2].push(['hlSnap', 'toggle', '🖍️ هایلایتەری زیرەک (خۆی دەچێتە سەر دێڕەکان)', null, true], ['twoFingerUndo', 'toggle', '✌️ دوو پەنجە = گەڕاندنەوە', null, true], ['ocrAhead', 'toggle', '📷 OCR ی لاپەڕەکانی داهاتوو بە بێدەنگی', null, true], ['silentSound', 'toggle', '🔔 دەنگی بەرنامە لە دۆخی بێدەنگی iPhone (ئاگاداربە: مایکرۆفۆن تێکدەدات)', null, false]);
   } catch {}
   FX.push({ id: 'hl', ic: '🖍️', t: 'هایلایتەر', cat: 'read', run: '#reader-view button[title="هایلایتەر"]', book: 1, kw: 'highlight marker' }, { id: 'undo', ic: '↩️', t: 'گەڕاندنەوە (Undo)', cat: 'read', run: () => undo(), book: 1, kw: 'undo' });
 }
