@@ -14,7 +14,7 @@
   /* 🐞 the very first script: catches every error from the first millisecond, even if the app fails to start */
   (function () {
     var KEY = 'kurdish_errlog_v1', SES = 'kurdish_session_v1', buf = [];
-    window.__APP_BUILD__ = '2026-11-27 15:01';
+    window.__APP_BUILD__ = '2026-11-27 21:58';
     function load() { try { var v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
     function save(list) { try { localStorage.setItem(KEY, JSON.stringify(list.slice(-300))); } catch (e) { try { localStorage.setItem(KEY, JSON.stringify(list.slice(-60))); } catch (e2) {} } }
     function ctx() { try { return window.__klogCtx ? window.__klogCtx() : ''; } catch (e) { return ''; } }
@@ -2475,6 +2475,16 @@ const AMBIENTS = {
    audio session to 'play-and-record' — in 'playback' WebKit throws «AudioSession category is not compatible
    with audio capture». When the last microphone stops, it goes back to 'playback'. */
 const KU_MIC_LIVE = new Set();
+function kuMicLog(e) { try { console.warn('mic', (e && e.name) || 'Error', (e && e.message) || '', 'session=' + ((navigator.audioSession && navigator.audioSession.type) || '-'), (navigator.standalone || matchMedia('(display-mode: standalone)').matches) ? 'home-screen app' : 'browser'); } catch {} }
+/** Kurdish explanation of why the microphone did not open */
+function kuMicWhy(e) {
+  const n = (e && e.name) || '';
+  return ({ NotAllowedError: '🎤 iPad ڕێگەی بە مایکرۆفۆن نەدا — ئەپەکە بە تەواوی دابخە و بیکەرەوە، کاتێک پرسیاری کرد «Allow» دابگرە',
+    InvalidStateError: '🎤 دەنگی iPad لە دۆخی «تەنها لێدان»ـە — دەنگە کراوەکان (موزیک، خوێندنەوە) ڕابگرە و دووبارە دایبگرە',
+    NotReadableError: '🎤 مایکرۆفۆنەکە بە دەستی ئەپێکی ترەوەیە (پەیوەندی، FaceTime…) — ئەوە دابخە',
+    AbortError: '🎤 مایکرۆفۆنەکە بە دەستی ئەپێکی ترەوەیە — ئەوە دابخە',
+    NotFoundError: '🎤 هیچ مایکرۆفۆنێک نەدۆزرایەوە' })[n] || `🎤 مایکرۆفۆن نەکرایەوە (${n || 'Error'})`;
+}
 function kuMicBusy() { for (const t of KU_MIC_LIVE) { if (t.readyState === 'live') return true; KU_MIC_LIVE.delete(t); } return false; }
 (function kuMicSessionGuard() {
   const md = navigator.mediaDevices; if (!md || !md.getUserMedia || md.__kuMic) return;
@@ -2488,8 +2498,17 @@ function kuMicBusy() { for (const t of KU_MIC_LIVE) { if (t.readyState === 'live
     let st;
     try { st = await orig(c); }
     catch (e) {
-      if (!(audio && e && e.name === 'InvalidStateError' && AS())) throw e;
-      rec(); st = await orig(c);                       // something switched it back in between → once more
+      if (!(audio && e && e.name === 'InvalidStateError' && AS())) { kuMicLog(e); throw e; }
+      // iPad still in 'playback': pause the app's own sounds a moment and try the other capture-friendly modes
+      let last = e; const ctx = typeof audioEngine !== 'undefined' && audioEngine && audioEngine.ctx;
+      try { ctx && ctx.state === 'running' && (await ctx.suspend()); } catch {}
+      for (const ty of ['play-and-record', 'auto', 'play-and-record']) {
+        try { AS().type = ty; } catch {}
+        await new Promise((r) => setTimeout(r, 180));
+        try { st = await orig(c); last = null; break; } catch (e2) { last = e2; }
+      }
+      try { ctx && (await ctx.resume()); } catch {}
+      if (last) { kuMicLog(last); throw last; }
     }
     if (audio) st.getAudioTracks().forEach((t) => {
       KU_MIC_LIVE.add(t);
@@ -17221,7 +17240,7 @@ async function vqStartRec() {
   if (!navigator.mediaDevices || !window.MediaRecorder) { showToast('ئەم وێبگەڕە تۆمارکردنی دەنگ پشتگیری ناکات', 'error'); return; }
   stopAllSpeech();
   try { vq.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
-  catch { showToast('🎤 ڕێگە بە مایکرۆفۆن بدە (لە ڕێکخستنەکانی وێبگەڕ)', 'error'); return; }
+  catch (e) { showToast(kuMicWhy(e), 'error'); return; }
   const mime = vqMime();
   vq.chunks = []; vq.heardSpeech = false; vq.quietAt = 0; vq.t0 = Date.now();
   vq.rec = new MediaRecorder(vq.stream, mime ? { mimeType: mime } : undefined);
@@ -20524,7 +20543,7 @@ async function p14Record(btn, onBlob) {
   if (!navigator.mediaDevices || !window.MediaRecorder) { showToast('ئەم وێبگەڕە تۆمارکردنی دەنگ پشتگیری ناکات', 'error'); return; }
   stopAllSpeech(); vxStop();
   try { p14r.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
-  catch { showToast('🎤 ڕێگە بە مایکرۆفۆن بدە (لە ڕێکخستنەکانی وێبگەڕ)', 'error'); return; }
+  catch (e) { showToast(kuMicWhy(e), 'error'); return; }
   const mime = vqMime(), chunks = []; let heard = false, quiet = 0; const t0 = Date.now();
   p14r.rec = new MediaRecorder(p14r.stream, mime ? { mimeType: mime } : undefined);
   p14r.rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
