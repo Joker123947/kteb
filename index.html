@@ -14,7 +14,7 @@
   /* 🐞 the very first script: catches every error from the first millisecond, even if the app fails to start */
   (function () {
     var KEY = 'kurdish_errlog_v1', SES = 'kurdish_session_v1', buf = [];
-    window.__APP_BUILD__ = '2026-11-27 13:55';
+    window.__APP_BUILD__ = '2026-11-27 14:18';
     function load() { try { var v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
     function save(list) { try { localStorage.setItem(KEY, JSON.stringify(list.slice(-300))); } catch (e) { try { localStorage.setItem(KEY, JSON.stringify(list.slice(-60))); } catch (e2) {} } }
     function ctx() { try { return window.__klogCtx ? window.__klogCtx() : ''; } catch (e) { return ''; } }
@@ -19853,21 +19853,65 @@ function nrAudioEl() {
 function nrCallWire(call) {
   nr.call = call;
   call.on('stream', (st) => { const a = nrAudioEl(); a.srcObject = st; a.play().catch(() => showToast('🔊 بۆ بیستنی دەنگ، جارێک لە شاشەکە بدە', 'info')); nrUi(); });
-  const end = () => { if (nr.call !== call) return; nr.call = null; if (nr.mic) { nr.mic.getTracks().forEach((t) => t.stop()); nr.mic = null; } const a = $('nr-audio'); if (a) a.srcObject = null; nrUi(); };
+  const end = () => { if (nr.call !== call) return; nr.call = null; nr.silentCall = false; if (nr.mic) { nr.mic.getTracks().forEach((t) => t.stop()); nr.mic = null; } const a = $('nr-audio'); if (a) a.srcObject = null; nrUi(); };
   call.on('close', end); call.on('error', end);
 }
-async function nrMicOn() {
-  if (nr.mic) return true;
-  try { nr.mic = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }); }
-  catch { showToast('🎙️ ڕێگە بە مایکرۆفۆن بدە (Settings ← Safari ← Microphone)', 'error'); return false; }
-  return true;
+/** microphone — tells the REAL reason when iPad says no, and keeps the call going without it */
+async function nrMicOn(quiet) {
+  if (nr.mic && nr.mic.getAudioTracks().some((t) => t.readyState === 'live')) return true;
+  nr.mic = null;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { nrMicWhy({ name: 'NoMediaDevices' }, quiet); return false; }
+  const tries = [{ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }, { audio: true }];
+  let last = null;
+  for (const c of tries) {
+    try { nr.mic = await navigator.mediaDevices.getUserMedia(c); nr.micErr = ''; return true; }
+    catch (e) { last = e; if (e && e.name === 'NotAllowedError') break; }   // a "no" will not change on a second ask
+  }
+  await nrMicWhy(last, quiet);
+  return false;
+}
+async function nrMicWhy(e, quiet) {
+  const name = (e && e.name) || 'Error';
+  let perm = ''; try { perm = (await navigator.permissions.query({ name: 'microphone' })).state; } catch {}
+  const app = !!(navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches));
+  console.warn('nr mic', name, (e && e.message) || '', 'perm=' + (perm || '?'), app ? 'home-screen app' : 'browser', 'other mic users=' + [typeof vq !== 'undefined' && vq.stream, typeof p14r !== 'undefined' && p14r.stream, typeof her !== 'undefined' && her.stream].filter(Boolean).length);
+  nr.micErr = name;
+  if (quiet) return;
+  const msg = {
+    NotAllowedError: app
+      ? '🎙️ iPad ڕێگەی بە مایکرۆفۆن نەدا. ئەپەکە بە تەواوی دابخە (لە App Switcher بۆ سەرەوە ڕایبکێشە)، دووبارە بیکەرەوە، و کاتێک پرسیاری کرد «Allow» دابگرە.'
+      : '🎙️ Safari ڕێگەی بە مایکرۆفۆن نەدا — لە شریتی ناونیشان «aA» ← Website Settings ← Microphone ← Allow',
+    NotReadableError: '🎙️ مایکرۆفۆنەکە بە دەستی ئەپێکی ترەوەیە (پەیوەندی، FaceTime، تۆمارکەر...) — ئەوە دابخە و 🎙️ دابگرە',
+    AbortError: '🎙️ مایکرۆفۆنەکە بە دەستی ئەپێکی ترەوەیە — ئەوە دابخە و 🎙️ دابگرە',
+    NotFoundError: '🎙️ هیچ مایکرۆفۆنێک نەدۆزرایەوە',
+    NoMediaDevices: '🎙️ ئەم وێبگەڕە ڕێگە بە مایکرۆفۆن نادات',
+  }[name] || `🎙️ مایکرۆفۆن کار ناکات (${name})`;
+  showToast(msg, 'error');
+}
+/** a silent line, so a call can start/answer even without a microphone (you still hear your friend) */
+function nrSilent() {
+  try { const C = window.AudioContext || window.webkitAudioContext; nr._sctx = nr._sctx || new C(); const d = nr._sctx.createMediaStreamDestination(); try { nr._sctx.resume(); } catch {} return d.stream; } catch { return null; }
+}
+/** microphone came later → put it into the running call without hanging up */
+async function nrMicLate() {
+  if (!(await nrMicOn())) return false;
+  const pc = nr.call && nr.call.peerConnection, t = nr.mic.getAudioTracks()[0];
+  const snd = pc && pc.getSenders().find((x) => !x.track || x.track.kind === 'audio');
+  if (snd) { try { await snd.replaceTrack(t); nr.silentCall = false; showToast('🎙️ ئێستا دەنگت دەڕوات', 'success'); nrUi(); return true; } catch (e) { console.warn('nr replaceTrack', e); } }
+  showToast('🎙️ کۆتایی بە قسەکردن بهێنە و دووبارە 📞 دابگرە', 'info'); return false;
 }
 async function nrVoice() {
   nrAudioEl().play().catch(() => {});   // iPad: unlock sound inside the tap, before the friend's voice arrives
-  if (nr.call) { const t = nr.mic && nr.mic.getAudioTracks()[0]; if (t) { t.enabled = !t.enabled; showToast(t.enabled ? '🎙️ دەنگت دەڕوات' : '🔇 بێدەنگ کرا', 'info'); } nrUi(); return; }
+  if (nr.call) {
+    if (nr.silentCall) { await nrMicLate(); return; }
+    const t = nr.mic && nr.mic.getAudioTracks()[0]; if (t) { t.enabled = !t.enabled; showToast(t.enabled ? '🎙️ دەنگت دەڕوات' : '🔇 بێدەنگ کرا', 'info'); } nrUi(); return;
+  }
   if (!nr.peer || !nr.conn || !nr.conn.open) { showToast(nr.bcPeer ? '🎙️ لەسەر هەمان ئامێر پێویست بە قسەکردن نییە 🙂' : '🎙️ چاوەڕێ بکە تا هاوڕێکەت دەبەسترێتەوە', 'info'); return; }
-  if (!(await nrMicOn())) return;
-  nrCallWire(nr.peer.call(nr.conn.peer, nr.mic));
+  const ok = await nrMicOn();
+  const st = ok ? nr.mic : nrSilent(); if (!st) return;
+  nr.silentCall = !ok;
+  if (!ok) showToast('👂 بێ مایکرۆفۆن بانگ دەکەم — دەنگی هاوڕێکەت دەبیستیت؛ دواتر 🎙️ دابگرە', 'info');
+  nrCallWire(nr.peer.call(nr.conn.peer, st));
   nrSend({ t: 'voice' }); showToast('📞 بانگ دەکەم... کاتێک ' + (nr.partner || 'هاوڕێکەت') + ' وەڵامی دایەوە دەنگی یەکتر دەبیستن', 'info'); nrUi();
 }
 function nrHangup() {
@@ -20052,7 +20096,7 @@ function nrUi() {
     const who = live ? escapeHtml(nr.partner || 'چاوەڕێ...') : fixing ? '🔄 دەبەستمەوە...' : 'چاوەڕێ...';
     bar.innerHTML = `<span class="nr-dot${live ? ' on' : fixing ? ' fix' : ''}"></span><span class="text-[12px] font-bold truncate max-w-[110px]">🌙 ${who}</span>`
       + `<button data-nr="chat" class="${nr.chatOpen ? 'on' : ''}" title="چات">💬${nr.unread ? `<i class="nr-badge">${toKuDigits(Math.min(nr.unread, 99))}</i>` : ''}</button>`
-      + `<button data-nr="mic" class="${nr.call && mic && mic.enabled ? 'on' : ''}" title="${nr.call ? 'بێدەنگ / دەنگ' : 'قسەکردن'}">${nr.call ? (mic && mic.enabled ? '🎙️' : '🔇') : '📞'}</button>`
+      + `<button data-nr="mic" class="${nr.call && mic && mic.enabled && !nr.silentCall ? 'on' : ''}${nr.silentCall ? ' warn' : ''}" title="${nr.silentCall ? 'مایکرۆفۆن بکەرەوە' : nr.call ? 'بێدەنگ / دەنگ' : 'قسەکردن'}">${nr.call ? (nr.silentCall ? '🎙️⁺' : mic && mic.enabled ? '🎙️' : '🔇') : '📞'}</button>`
       + (nr.call ? '<button data-nr="hang" class="hang" title="کۆتایی قسەکردن">📞</button>' : '')
       + `<button data-nr="pt" class="${nr.pointer ? 'on' : ''}" title="نیشاندان بە پەنجە">👆</button><button data-nr="x" title="کۆتایی">✕</button>`;
   }
@@ -20121,7 +20165,7 @@ function initPart13c() {
 .nr-dot{width:9px;height:9px;border-radius:50%;background:#a3a3a3}.nr-dot.on{background:#4ade80;box-shadow:0 0 0 3px rgba(74,222,128,.25)}.nr-dot.fix{background:#fbbf24;animation:nrBlink 1s infinite}
 @keyframes nrBlink{50%{opacity:.35}}
 body.nr-on #bsd-chip{top:calc(env(safe-area-inset-top,0px) + 102px)}body.nr-on #nr-ring{top:calc(env(safe-area-inset-top,0px) + 146px)}
-#nr-bar button{position:relative}#nr-bar button.hang{background:#dc2626;border-color:#f87171}.nr-badge{position:absolute;top:-5px;left:-5px;min-width:17px;height:17px;padding:0 4px;border-radius:99px;background:#ef4444;color:#fff;font:700 10px/17px Vazirmatn;font-style:normal}
+#nr-bar button{position:relative}#nr-bar button.hang{background:#dc2626;border-color:#f87171}#nr-bar button.warn{background:#b45309;border-color:#fbbf24;animation:nrBlink 1.4s infinite}.nr-badge{position:absolute;top:-5px;left:-5px;min-width:17px;height:17px;padding:0 4px;border-radius:99px;background:#ef4444;color:#fff;font:700 10px/17px Vazirmatn;font-style:normal}
 #nr-chat{position:fixed;z-index:78;right:max(10px,env(safe-area-inset-right,0px));bottom:calc(env(safe-area-inset-bottom,0px) + 12px);width:min(360px,calc(100vw - 20px));height:min(460px,58vh);display:flex;flex-direction:column;border-radius:18px;background:linear-gradient(#1f1733,#120c1f);border:1px solid rgba(167,139,250,.55);color:#ede9fe;box-shadow:0 18px 50px rgba(0,0,0,.6);transform:translateY(calc(100% + 40px));opacity:0;pointer-events:none;transition:transform .3s ease,opacity .3s}
 #nr-chat.show{transform:none;opacity:1;pointer-events:auto}
 .nrc-head{display:flex;align-items:center;gap:8px;padding:10px 12px;border-bottom:1px solid rgba(167,139,250,.25);font-size:13.5px}.nrc-head button{margin-inline-start:auto;min-width:32px;min-height:32px;border-radius:99px;background:rgba(167,139,250,.15)}
@@ -20191,7 +20235,17 @@ body.nr-on #bsd-chip{top:calc(env(safe-area-inset-top,0px) + 102px)}body.nr-on #
     const b = e.target.closest('[data-nr]');
     if (b) { const k = b.dataset.nr; if (k === 'x') { if (await confirmDialog({ title: '🌙 کۆتایی خوێندنەوەی هاوبەش؟', message: 'پەیوەندییەکە لەگەڵ ' + (nr.partner || 'هاوڕێکەت') + ' دەپچڕێت.', okText: 'کۆتایی', danger: true })) nrStop(); return; } if (k === 'mic') nrVoice(); if (k === 'hang') nrHangup(); if (k === 'chat') nrChatOpen(); if (k === 'pt') { nr.pointer = !nr.pointer; showToast(nr.pointer ? '👆 دەست لە هەر شوێنێکی لاپەڕە بدە، لای هاوڕێکەت دەدرەوشێتەوە' : '👆 کوژایەوە', 'info'); nrUi(); } return; }
     const ring = $('nr-ring');
-    if (e.target.closest('[data-nr-ans]')) { ring.classList.remove('show'); nrAudioEl().play().catch(() => {}); const c = ring._call; if (c && (await nrMicOn())) { c.answer(nr.mic); nrCallWire(c); nrUi(); } return; }
+    if (e.target.closest('[data-nr-ans]')) {
+      ring.classList.remove('show'); const c = ring._call; if (!c) return;
+      const micP = nrMicOn();                       // ask first, still inside the tap (iPad needs that)
+      nrAudioEl().play().catch(() => {});
+      const ok = await micP, st = ok ? nr.mic : nrSilent();
+      nr.silentCall = !ok;
+      try { c.answer(st || undefined); } catch (er) { console.warn('nr answer', er); try { c.answer(); } catch {} }
+      nrCallWire(c); nrUi();
+      if (!ok) setTimeout(() => showToast('👂 وەڵام درایەوە — دەنگی هاوڕێکەت دەبیستیت. بۆ قسەکردن 🎙️ لە شریتەکە دابگرە', 'info'), 2600);
+      return;
+    }
     if (e.target.closest('[data-nr-rej]')) { ring.classList.remove('show'); try { ring._call && ring._call.close(); } catch {} }
   }, true);
   const prevUi = isUiTarget;
