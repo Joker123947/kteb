@@ -14,7 +14,7 @@
   /* 🐞 the very first script: catches every error from the first millisecond, even if the app fails to start */
   (function () {
     var KEY = 'kurdish_errlog_v1', SES = 'kurdish_session_v1', buf = [];
-    window.__APP_BUILD__ = '2026-11-28 04:26';
+    window.__APP_BUILD__ = '2026-11-28 04:54';
     function load() { try { var v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
     function save(list) { try { localStorage.setItem(KEY, JSON.stringify(list.slice(-300))); } catch (e) { try { localStorage.setItem(KEY, JSON.stringify(list.slice(-60))); } catch (e2) {} } }
     function ctx() { try { return window.__klogCtx ? window.__klogCtx() : ''; } catch (e) { return ''; } }
@@ -24447,14 +24447,14 @@ async function elQuotaHit(e) {
   showToast(`🎧 کرێدیتی ئەم مانگەی ElevenLabs تەواو بوو (تا ${new Date(until).toLocaleDateString('ckb-IQ')}) — بە دەنگی Gemini بەردەوام دەبم`, 'info');
 }
 /** speak with ElevenLabs; trouble → the rest continues with the previous engine (Gemini → local) */
-function elSpeak(text, onend, onword, fallback) {
-  const tok = ++el.tok; el.playing = true; kuv.playing = true;
+function elSpeak(text, onend, onword, fallback, voice) {
+  const tok = ++el.tok; el.playing = true; kuv.playing = true; voice = voice || elVoice();
   const pieces = elPieces(text);
   (async () => {
     let wordBase = 0;
     for (let i = 0; i < pieces.length; i++) {
       if (tok !== el.tok) return;
-      const cur = elSynth(pieces[i]); if (i + 1 < pieces.length) elSynth(pieces[i + 1]).catch(() => {});
+      const cur = elSynth(pieces[i], voice); if (i + 1 < pieces.length) elSynth(pieces[i + 1], voice).catch(() => {});
       kuCaptionShow(true); kuCaptionWaiting(pieces[i]);
       let rec;
       try { rec = await cur; } catch (e) {
@@ -24504,6 +24504,50 @@ function sysVoicesFor(lang) {
 }
 function sysNatural(v) { return /Natural|Online|Neural|Premium|Enhanced/i.test(v.name || ''); }
 
+/* ---------- 🎭 CAST — every character / podcast host can have its own voice ----------
+   '' = automatic: with ElevenLabs on, girls & women → ElevenLabs, men & boys → Gemini (one
+   ElevenLabs voice for everybody made Aram sound like a girl). Or choose: 'eleven:<id>',
+   'gemini:<Name>', 'vekol'. */
+const CAST_TYPES = [['pA', '🎙️ پۆدکاست · ئارام'], ['pB', '🎙️ پۆدکاست · ژیان'], ['n', '📖 گێڕەرەوە'], ['f', '👩 ئافرەت'], ['f2', '👱‍♀️ ئافرەتی دووەم'], ['m', '👨 پیاو'], ['m2', '🧔 پیاوی دووەم'], ['c', '🧒 منداڵ'], ['o', '👴 پیر']];
+const CAST_MALE = new Set(['m', 'm2', 'o', 'pA']);
+function castOf(type) { return ((settings.cast || {})[type]) || ''; }
+function castResolve(type) {
+  const c = castOf(type);
+  if (c) return c;
+  if (!elWanted() || elOut()) return '';                      // ElevenLabs off → as before
+  if (CAST_MALE.has(type) && aiReady() && !settings.aiSaver) return 'gemini:' + (GT_VOICES[type] || GT_VOICES.m);
+  return type === 'n' || type === 'pB' || !CAST_MALE.has(type) ? 'eleven:' + elVoice() : '';
+}
+function castLabel(c) {
+  if (!c) return '🤖 خۆکار';
+  if (c === 'vekol') return '🎙️ Vekol';
+  const [k, v] = [c.slice(0, c.indexOf(':')), c.slice(c.indexOf(':') + 1)];
+  if (k === 'gemini') return '🤖 ' + v;
+  const ev = (el.voices || []).find((x) => x.id === v); return '🎧 ' + (ev ? ev.name : v === EL_JESSICA ? 'Jessica' : 'ElevenLabs');
+}
+function castOptions(sel) {
+  const ev = (el.voices || [{ id: EL_JESSICA, name: 'Jessica', labels: { gender: 'female' } }]);
+  const opts = [['', elKey() ? '🤖 خۆکار (کچ ← ElevenLabs، کوڕ ← Gemini)' : '🤖 خۆکار']];
+  if (elKey()) ev.forEach((v) => opts.push(['eleven:' + v.id, `🎧 ${v.name}${v.labels && v.labels.gender ? ' · ' + (/female/i.test(v.labels.gender) ? 'ئافرەت' : 'پیاو') : ''}`]));
+  GT_VOICE_INFO.forEach(([k, n, d]) => opts.push(['gemini:' + GT_VOICES[k], `🤖 ${n.replace(/^\S+\s/, '')} · ${d}`]));
+  opts.push(['vekol', '🎙️ Vekol (ناوخۆ، بێ ئینتەرنێت)']);
+  if (sel && !opts.some((o) => o[0] === sel)) opts.push([sel, castLabel(sel)]);
+  return opts.map(([v, t]) => `<option value="${escapeHtml(v)}" ${v === sel ? 'selected' : ''}>${escapeHtml(t)}</option>`).join('');
+}
+function castSet(type, val) { settings.cast = { ...(settings.cast || {}), [type]: val }; saveSettings(); }
+/** run one character line with its own voice */
+function castWrap(type, fn) {
+  const c = castResolve(type);
+  if (!c) return fn();
+  if (c.startsWith('eleven:')) { if (!elKey() || elOut()) return fn(); el.forceVoice = c.slice(7); const r = fn(); el.forceVoice = null; return r; }
+  const was = GT_VOICES[type], wasGt = gt.bypass; el.bypass++;
+  try {
+    if (c.startsWith('gemini:')) GT_VOICES[type] = c.slice(7);
+    else if (c === 'vekol') gt.bypass = true;
+    return fn();
+  } finally { GT_VOICES[type] = was; gt.bypass = wasGt; el.bypass--; }
+}
+
 /* ---------- 🎧 studio UI ---------- */
 const VS_ENGINES = [['eleven', '🎧 ElevenLabs', 'دەنگی زۆر ناسک و سروشتی · نزیکەی ١٠ خولەک لە مانگێکدا بەخۆڕایی (کلیلی خۆت)'], ['auto', '🤖 Gemini → ناوخۆ', 'بەخۆڕایی · سنووری ڕۆژانە؛ کاتێک تەواو بوو دەنگی ناوخۆ'], ['gemini', '🤖 تەنها Gemini', 'بەخۆڕایی · سنووری ڕۆژانە'], ['vekol', '🎙️ Vekol', 'ناوخۆ · بێ ئینتەرنێت'], ['system', '🔈 دەنگی ئامێر', 'لە Edge ی کۆمپیوتەر دەنگە سروشتییەکانی Microsoft']];
 async function vsRender() {
@@ -24521,6 +24565,8 @@ async function vsRender() {
   </div>
   <div class="vs-sec">🤖 دەنگەکانی Gemini <small class="opacity-70">(▶ = نموونەی کوردی، یەکجار دروست دەبێت)</small></div>
   <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5">${GT_VOICE_INFO.map(([k, n, d]) => `<div class="vs-v ${(settings.gtVoice || 'n') === k ? 'on' : ''}"><button class="flex-1 text-right" data-vs-gt="${k}"><b>${n}</b><small>${d}</small></button><button class="vs-play" data-vs-gt-play="${k}">▶</button></div>`).join('')}</div>
+  <div class="vs-sec">🎭 دەنگی کارەکتەرەکان <small class="opacity-70">(پۆدکاست، شانۆ، چاتی کارەکتەر، چیرۆک)</small></div>
+  <div class="grid sm:grid-cols-2 gap-1.5">${CAST_TYPES.map(([t, l]) => `<label class="vs-cast"><span>${l}</span><select class="field !py-1 !text-[12px]" data-vs-cast="${t}">${castOptions(castOf(t))}</select><button class="vs-play" data-vs-cast-play="${t}">▶</button></label>`).join('')}</div>
   <div id="vs-sys"></div>
   <div class="vs-sec">🧪 تاقیکردنەوە</div>
   <div class="flex gap-2"><input id="vs-test" class="field flex-1 !py-2" value="${escapeHtml(VS_SAMPLE)}" dir="auto"><button class="rb primary !px-4" data-vs-test>▶</button><button class="rb !px-3" data-vs-stop>⏹</button></div>`;
@@ -24541,6 +24587,7 @@ async function vsElVoices() {
     const L = await elVoices(), cur = elVoice();
     const fem = L.filter((v) => /female|woman/i.test(v.labels.gender || '')), rest = L.filter((v) => !fem.includes(v));
     const list = [...fem, ...rest].sort((a, b) => (b.id === EL_JESSICA) - (a.id === EL_JESSICA));
+    document.querySelectorAll('[data-vs-cast]').forEach((sx) => { sx.innerHTML = castOptions(castOf(sx.dataset.vsCast)); });
     B.innerHTML = `<div class="text-[11.5px] text-amber-200/75 mb-1">دەنگێک هەڵبژێرە (▶ نموونەی ئینگلیزی بەخۆڕایییە · 🗣️ نموونەی کوردی ~٦٠ پیت)</div><div class="grid gap-1.5 max-h-[34vh] overflow-y-auto">${list.map((v) => `<div class="vs-v ${v.id === cur ? 'on' : ''}"><button class="flex-1 text-right" data-vs-el="${escapeHtml(v.id)}"><b dir="ltr">${escapeHtml(v.name)}</b><small>${escapeHtml([v.labels.gender, v.labels.age, v.labels.accent, v.labels.description || v.labels.descriptive].filter(Boolean).join(' · '))}</small></button>${v.preview ? `<button class="vs-play" data-vs-el-prev="${escapeHtml(v.preview)}">▶</button>` : ''}<button class="vs-play" data-vs-el-ku="${escapeHtml(v.id)}">🗣️</button></div>`).join('')}</div>`;
   } catch (e) {
     B.innerHTML = `<div class="tq-warn">${e.el === 'invalid_api_key' || e.status === 401 ? '⚠️ کلیلەکە کار ناکات — دڵنیابە کە دروست کۆپیت کردووە' : '⚠️ پەیوەندی بە ElevenLabs ـەوە نەکرا: ' + escapeHtml(e.message || '')}</div>`;
@@ -24579,7 +24626,9 @@ function initPart18a() {
 .vs-eng b{font-size:13.5px}.vs-eng small{font-size:11px;opacity:.72}.vs-eng.on{border-color:#fbbf24;background:rgba(251,191,36,.12)}.vs-eng i{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-style:normal;color:#fbbf24}
 .vs-sec{font-weight:800;color:#fde68a;font-size:13px;margin:12px 0 6px}.vs-box{border:1px solid rgba(212,175,55,.22);border-radius:14px;padding:10px;background:rgba(0,0,0,.12)}
 .vs-v{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:12px;background:rgba(0,0,0,.18);border:1px solid rgba(212,175,55,.18)}.vs-v.on{border-color:#fbbf24;background:rgba(251,191,36,.12)}
-.vs-v b{display:block;font-size:12.5px}.vs-v small{display:block;font-size:10.5px;opacity:.7}.vs-play{min-width:32px;height:32px;border-radius:99px;background:rgba(212,175,55,.15);border:1px solid rgba(212,175,55,.4);flex:none}`,
+.vs-v b{display:block;font-size:12.5px}.vs-v small{display:block;font-size:10.5px;opacity:.7}.vs-cast{display:grid;grid-template-columns:auto 1fr auto;align-items:center;gap:6px;font-size:12px;padding:5px 7px;border-radius:12px;background:rgba(0,0,0,.18);border:1px solid rgba(212,175,55,.18)}.vs-cast span{white-space:nowrap}
+.pod-cast{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:4px 0 8px}.pod-cast label{display:flex;align-items:center;gap:4px;font-size:11.5px}.pod-cast select{max-width:170px}
+.vs-play{min-width:32px;height:32px;border-radius:99px;background:rgba(212,175,55,.15);border:1px solid rgba(212,175,55,.4);flex:none}`,
   p11Modal('modal-vs', '🎧 ستۆدیۆی دەنگ', '<div id="vs-body"></div>', true));
   KB_SECRET.push(EL_KEY);
 
@@ -24589,9 +24638,25 @@ function initPart18a() {
     return pS.apply(this, arguments);
   };
   const pK = kuSpeak; kuSpeak = function (text, onend, onword) {
-    if (elActive('ckb')) return elSpeak(text, onend, onword, (t, e, w) => pK.call(this, t, e, w));
+    const fv = el.forceVoice; el.forceVoice = null;
+    if (elActive('ckb')) return elSpeak(text, onend, onword, (t, e, w) => pK.call(this, t, e, w), fv);
     return pK.apply(this, arguments);
   };
+  // podcast hosts get their own voice types (so Aram ≠ every other man)
+  VX_TYPES.pA = { ...VX_TYPES.m, label: 'ئارام' }; VX_TYPES.pB = { ...VX_TYPES.f, label: 'ژیان' };
+  GT_VOICES.pA = GT_VOICES.m; GT_VOICES.pB = GT_VOICES.f;
+  POD_HOSTS.A.v = 'pA'; POD_HOSTS.B.v = 'pB';
+  const pVx = vxSpeak; vxSpeak = function (text, type, speed) { const a = arguments; return castWrap(type, () => pVx.apply(this, a)); };
+  const ph = $('pod-hosts');
+  if (ph) ph.insertAdjacentHTML('afterend', `<div id="pod-cast" class="pod-cast">${['A', 'B'].map((h) => `<label>${POD_HOSTS[h].icon} ${POD_HOSTS[h].name}<select class="field !py-0.5 !text-[11.5px]" data-pod-cast="${POD_HOSTS[h].v}"></select></label>`).join('')}</div>`);
+  const podCastPaint = () => document.querySelectorAll('[data-pod-cast]').forEach((s) => { s.innerHTML = castOptions(castOf(s.dataset.podCast)); });
+  const podCast = $('pod-cast');
+  if (podCast) {
+    podCast.addEventListener('change', (e) => { const s = e.target.closest('[data-pod-cast]'); if (!s) return; castSet(s.dataset.podCast, s.value); showToast('🎭 ' + (s.dataset.podCast === 'pA' ? POD_HOSTS.A.name : POD_HOSTS.B.name) + ' ← ' + castLabel(s.value), 'success'); });
+    podCast.addEventListener('focusin', () => { if (elKey() && !el.voices) elVoices().then(podCastPaint).catch(() => {}); });
+  }
+  const pOMp = openModal; openModal = function (id) { const r = pOMp.apply(this, arguments); if (id === 'modal-pod') { podCastPaint(); if (elKey() && !el.voices) elVoices().then(podCastPaint).catch(() => {}); } return r; };
+  podCastPaint();
   const pA = kuVoiceActive; kuVoiceActive = function () { return elActive('ckb') || pA.apply(this, arguments); };
   const pSt = kuStop; kuStop = function () { elStop(); return pSt.apply(this, arguments); };
   const pAll = stopAllSpeech; stopAllSpeech = function () { elStop(); return pAll.apply(this, arguments); };
@@ -24620,11 +24685,13 @@ function initPart18a() {
     const ku = t.closest('[data-vs-el-ku]'); if (ku) { vsElKu(ku.dataset.vsElKu, ku); return; }
     const gv = t.closest('[data-vs-gt]'); if (gv) { settings.gtVoice = gv.dataset.vsGt; saveSettings(); document.querySelectorAll('#vs-body .vs-v').forEach((x) => { if (x.querySelector('[data-vs-gt]')) x.classList.toggle('on', x.contains(gv)); }); showToast('🤖 ' + gv.querySelector('b').textContent, 'success'); return; }
     const gp = t.closest('[data-vs-gt-play]'); if (gp) { vsGtSample(gp.dataset.vsGtPlay, gp); return; }
+    const cp = t.closest('[data-vs-cast-play]'); if (cp) { try { stopAllSpeech(); } catch {} const ty = cp.dataset.vsCastPlay; vxSpeak(ty === 'pA' || CAST_MALE.has(ty) ? 'سڵاو، من ئارامم. ئەمڕۆ باسی ئەم بەشە دەکەین.' : 'سڵاو، من ژیانم. با پێکەوە گوێ بگرین.', ty, 1); return; }
     if (t.closest('[data-vs-test]')) { try { stopAllSpeech(); } catch {} speakText($('vs-test').value || VS_SAMPLE, null, null); return; }
     if (t.closest('[data-vs-stop]')) { try { stopAllSpeech(); } catch {} try { vsAudio && vsAudio.pause(); } catch {} }
   });
   $('modal-vs').addEventListener('change', (e) => {
     if (e.target.id === 'vs-el-scope') { settings.elScope = e.target.value; saveSettings(); }
+    const cs = e.target.closest('[data-vs-cast]'); if (cs) { castSet(cs.dataset.vsCast, cs.value); showToast('🎭 ' + castLabel(cs.value), 'success'); }
     const s = e.target.closest('[data-vs-sys]'); if (s) { settings.sysVoices = { ...(settings.sysVoices || {}), [s.dataset.vsSys]: s.value }; saveSettings(); }
   });
   MODAL_ON_CLOSE['modal-vs'] = () => { try { vsAudio && vsAudio.pause(); } catch {} };
