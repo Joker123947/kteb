@@ -14,7 +14,7 @@
   /* 🐞 the very first script: catches every error from the first millisecond, even if the app fails to start */
   (function () {
     var KEY = 'kurdish_errlog_v1', SES = 'kurdish_session_v1', buf = [];
-    window.__APP_BUILD__ = '2026-11-28 04:54';
+    window.__APP_BUILD__ = '2026-11-28 11:27';
     function load() { try { var v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
     function save(list) { try { localStorage.setItem(KEY, JSON.stringify(list.slice(-300))); } catch (e) { try { localStorage.setItem(KEY, JSON.stringify(list.slice(-60))); } catch (e2) {} } }
     function ctx() { try { return window.__klogCtx ? window.__klogCtx() : ''; } catch (e) { return ''; } }
@@ -22805,30 +22805,125 @@ function usApply(key) {
   if (key === 'voiceEngine' || key === 'gtVoice') { try { stopAllSpeech(); } catch {} }
 }
 
-/* ---------------- ✨ panel regrouped ---------------- */
+/* ---------------- ✨ panel: 🪐 orbit of families + 📚 shelves ---------------- */
+const SG_OTHER = ['🧩', 'هی تر', '#c9b89a'];
+function sgCatOf(id) { const f = FX.find((x) => x.run === '#' + id); return f ? f.cat : ''; }
+function sgCats() { return Object.keys(FX_CAT).concat('other'); }
+function sgInfo(k) { return FX_CAT[k] || SG_OTHER; }
 function smartRegroup() {
   const panel = $('panel-smart'); if (!panel || panel.dataset.grouped) return;
   const firstSec = panel.querySelector('.smart-sec'); if (!firstSec) return;
   const host = firstSec.parentElement;
-  const tiles = new Map([...panel.querySelectorAll('.smart-tile[id]')].map((b) => [b.id, b]));
-  const byCat = {};
-  FX.forEach((f) => { if (typeof f.run === 'string' && f.run.startsWith('#smart-') || f.run === '#btn-ai-ask') { const b = tiles.get(f.run.slice(1)); if (b) { (byCat[f.cat] = byCat[f.cat] || []).push(b); tiles.delete(f.run.slice(1)); } } });
-  const rest = [...tiles.values()].filter((b) => !b.closest('#smart-groups'));
   const wrap = document.createElement('div'); wrap.id = 'smart-groups';
-  wrap.innerHTML = `<input id="smart-q" class="field !py-1.5 !text-sm mb-2" placeholder="🔎 گەڕان لە ئامرازەکان..."><div id="smart-sug" class="fx-sug mb-1"></div>`;
-  Object.entries(FX_CAT).forEach(([k, c]) => {
-    const list = byCat[k]; if (!list || !list.length) return;
-    const sec = document.createElement('div'); sec.className = 'sg-sec' + ((settings.sgClosed || {})[k] ? ' closed' : ''); sec.dataset.sg = k; sec.style.setProperty('--c', c[2]);
-    sec.innerHTML = `<button class="sg-h"><span>${c[0]}</span><b>${c[1]}</b><small>${toKuDigits(list.length)}</small><i>⌄</i></button><div class="smart-grid sg-grid"></div>`;
-    list.forEach((b) => sec.querySelector('.sg-grid').appendChild(b)); wrap.appendChild(sec);
+  wrap.innerHTML = `<label class="so-q"><i>🔎</i><input id="smart-q" type="search" placeholder="گەڕان لە ئامرازەکان..." autocomplete="off" dir="auto"><button class="so-qx" aria-label="سڕینەوە">✕</button></label>
+<div class="so-top">
+  <div class="so-orbit" id="so-orbit"><div class="so-ring"></div><div class="so-ring so-ring2"></div>
+    <button class="so-hub" id="so-hub" title="فەسڵەکان و نیشانەکان"><i class="so-prog" id="so-prog"></i><span class="so-hub-in"><b id="so-title"></b><strong id="so-pct"></strong><small id="so-page"></small></span></button>
+  </div>
+  <div class="so-cap" id="so-cap"></div>
+</div>
+<div id="smart-sug" class="fx-sug so-sug"></div>
+<div class="so-favs"><span>دڵخوازەکان</span><div class="so-favrow" id="so-favs"></div></div>
+<div class="so-shelves" id="so-shelves"></div>
+<div class="so-empty hidden" id="so-empty">هیچ ئامرازێک بەم ناوە لێرە نییە<button class="so-more">🔎 لە هەموو تایبەتمەندییەکان بگەڕێ</button></div>`;
+  const shelves = wrap.querySelector('#so-shelves');
+  sgCats().forEach((k) => {
+    const c = sgInfo(k), sec = document.createElement('section');
+    sec.className = 'sg-sec so-shelf'; sec.dataset.sg = k; sec.style.setProperty('--c', c[2]);
+    sec.innerHTML = `<button class="sg-h so-h"><i class="so-dot"></i><span>${c[0]}</span><b>${c[1]}</b><small></small><em>هەمووی ‹</em></button><div class="smart-grid sg-grid so-track"></div>`;
+    shelves.appendChild(sec);
   });
-  if (rest.length) { const sec = document.createElement('div'); sec.className = 'sg-sec'; sec.dataset.sg = 'other'; sec.innerHTML = '<button class="sg-h"><span>🧩</span><b>هی تر</b><i>⌄</i></button><div class="smart-grid sg-grid"></div>'; rest.forEach((b) => sec.querySelector('.sg-grid').appendChild(b)); wrap.appendChild(sec); }
+  const head = [...host.children].find((el) => el.querySelector('.panel-title')); host.insertBefore(wrap, head ? head.nextSibling : host.firstChild);
+  if (head) head.classList.add('so-head');
   // old headings and empty grids go away
+  smartSort();
   [...host.querySelectorAll('.smart-sec')].forEach((h) => { const g = h.nextElementSibling; if (g && !g.querySelector('button')) g.remove(); h.remove(); });
-  host.insertBefore(wrap, host.firstChild);
-  panel.dataset.grouped = '1';
-  wrap.addEventListener('click', (e) => { const h = e.target.closest('.sg-h'); if (!h) return; const sec = h.parentElement; sec.classList.toggle('closed'); settings.sgClosed = settings.sgClosed || {}; settings.sgClosed[sec.dataset.sg] = sec.classList.contains('closed'); saveSettings(); });
-  $('smart-q').addEventListener('input', (e) => { const n = fxNorm(e.target.value); wrap.querySelectorAll('.sg-sec').forEach((sec) => { let any = false; sec.querySelectorAll('.smart-tile').forEach((b) => { const ok = !n || fxNorm(b.textContent).includes(n); b.style.display = ok ? '' : 'none'; any = any || ok; }); sec.style.display = any ? '' : 'none'; if (n) sec.classList.remove('closed'); }); });
+  // the quick switches at the bottom fold away neatly
+  const quick = [...host.children].filter((el) => el !== wrap && el !== head && !el.classList.contains('panel-title'));
+  if (quick.length) { const d = document.createElement('details'); d.className = 'so-more-box'; d.innerHTML = '<summary>⚙️ ڕێکخستنی خێرا و هی تر</summary>'; quick.forEach((el) => d.appendChild(el)); host.appendChild(d); }
+  panel.dataset.grouped = '1'; panel.classList.add('so-panel');
+  wrap.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-sg-pick]'); if (b) { sgPick(b.dataset.sgPick); haptic(6); return; }
+    const h = e.target.closest('.so-h'); if (h) { const k = h.parentElement.dataset.sg; if (wrap.classList.contains('so-search')) return; sgPick(k, true); haptic(6); return; }
+    if (e.target.closest('#so-hub')) { closeAllPanels(); fxRun('chapters'); return; }
+    if (e.target.closest('.so-qx')) { const q = $('smart-q'); q.value = ''; sgFilter(''); q.focus(); return; }
+    if (e.target.closest('.so-more')) { const q = $('smart-q').value; closeAllPanels(); openFx(q); return; }
+    if (e.target.closest('.so-addfav')) { closeAllPanels(); openFx(''); showToast('☆ لە تەنیشت هەر ئامرازێک دابگرە بۆ دانانی لە دڵخوازەکان', 'info'); }
+  });
+  $('smart-q').addEventListener('input', (e) => sgFilter(e.target.value));
+  sgPaint(); sgPick(settings.sgSel || '', false, true);
+}
+/* every tile finds its family's shelf (tiles added later by other features too) */
+function smartSort() {
+  const panel = $('panel-smart'), shelves = $('so-shelves'); if (!panel || !shelves) return;
+  const track = (k) => shelves.querySelector(`.so-shelf[data-sg="${k}"] .so-track`);
+  panel.querySelectorAll('.smart-tile[id]').forEach((b) => {
+    const inShelf = b.closest('.so-shelf');
+    const k = (b.id && sgCatOf(b.id)) || (inShelf && inShelf.dataset.sg) || 'other';
+    const t = track(FX_CAT[k] ? k : 'other');
+    if (t && b.parentElement !== t) t.appendChild(b);
+  });
+  shelves.querySelectorAll('.so-shelf').forEach((sec) => { const n = sec.querySelectorAll('.smart-tile').length; sec.classList.toggle('so-none', !n); sec.querySelector('.so-h small').textContent = n ? toKuDigits(n) : ''; });
+}
+function sgAvail() { return [...document.querySelectorAll('#so-shelves .so-shelf:not(.so-none)')].map((s) => s.dataset.sg); }
+function sgPaint() {
+  const box = $('so-orbit'); if (!box) return;
+  box.querySelectorAll('.so-planet').forEach((x) => x.remove());
+  const ks = sgAvail(), n = ks.length;
+  ks.forEach((k, i) => {
+    const c = sgInfo(k), a = -Math.PI / 2 + (i / n) * Math.PI * 2;
+    const b = document.createElement('button'); b.className = 'so-planet'; b.dataset.sgPick = k; b.title = c[1]; b.setAttribute('aria-label', c[1]);
+    b.style.cssText = `--c:${c[2]};--x:${(50 + Math.cos(a) * 36.5).toFixed(2)}%;--y:${(50 + Math.sin(a) * 39).toFixed(2)}%;--d:${i * 28}ms`;
+    b.innerHTML = `<span>${c[0]}</span>`; box.appendChild(b);
+  });
+}
+function sgPick(k, scroll, first) {
+  const ks = sgAvail(); if (!ks.length) return;
+  if (!ks.includes(k)) k = ks.includes('understand') ? 'understand' : ks[0];
+  const prev = settings.sgSel; settings.sgSel = k; if (prev !== k && !first) saveSettings();
+  const c = sgInfo(k), shelves = $('so-shelves');
+  document.querySelectorAll('#so-orbit .so-planet').forEach((p) => p.classList.toggle('on', p.dataset.sgPick === k));
+  const cap = $('so-cap'); cap.style.setProperty('--c', c[2]); cap.innerHTML = `<span>${c[0]}</span><b>${c[1]}</b>`;
+  const sec = shelves.querySelector(`.so-shelf[data-sg="${k}"]`);
+  shelves.querySelectorAll('.so-shelf.cur').forEach((x) => { if (x !== sec) x.classList.remove('cur'); });
+  if (sec) {
+    const moved = shelves.firstElementChild !== sec;
+    if (moved) shelves.insertBefore(sec, shelves.firstElementChild);
+    sec.classList.add('cur'); const t = sec.querySelector('.so-track'); if (t && moved) t.scrollLeft = 0;
+    if (!first) { sec.classList.remove('so-pop'); void sec.offsetWidth; sec.classList.add('so-pop'); }
+    if (scroll) { const p = $('panel-smart'); try { p.scrollTo({ top: Math.max(0, sec.offsetTop - 70), behavior: 'smooth' }); } catch { p.scrollTop = sec.offsetTop - 70; } }
+  }
+}
+function sgFilter(q) {
+  const n = fxNorm(q), wrap = $('smart-groups'); if (!wrap) return;
+  wrap.classList.toggle('so-search', !!n);
+  let total = 0;
+  wrap.querySelectorAll('.so-shelf').forEach((sec) => {
+    let any = 0; sec.querySelectorAll('.smart-tile').forEach((b) => { const ok = !n || fxNorm(b.textContent + ' ' + (b.title || '')).includes(n); b.classList.toggle('so-hide', !ok); if (ok) any++; });
+    sec.classList.toggle('so-miss', !!n && !any); total += any;
+  });
+  $('so-empty').classList.toggle('hidden', !n || total > 0);
+}
+function sgHub() {
+  const t = $('so-title'); if (!t) return;
+  const bk = state.activeBook; let pct = 0, cur = 0, N = 0;
+  try { N = totalPages() || 0; cur = bk ? p14Cur() : 0; pct = N ? Math.round((cur / N) * 100) : 0; } catch {}
+  t.textContent = bk ? (bk.title || '') : 'کتێبخانە';
+  $('so-pct').textContent = bk ? toKuDigits(pct) + '٪' : '📚';
+  $('so-page').textContent = bk && N ? `ل ${toKuDigits(cur)} / ${toKuDigits(N)}` : '';
+  $('so-prog').style.setProperty('--p', (bk ? pct : 0) + '%');
+}
+function sgFavs() {
+  const box = $('so-favs'); if (!box) return;
+  const html = fxPins().map((id) => FX.find((f) => f.id === id)).filter(Boolean).map((f) => `<button class="so-fav" data-fx="${f.id}" title="${escapeHtml(f.t)}"><span>${f.ic}</span><b>${escapeHtml(f.t)}</b></button>`).join('') + '<button class="so-fav so-addfav" title="دڵخوازی نوێ"><span>＋</span><b>زیادکردن</b></button>';
+  if (box.dataset.h !== html) { box.dataset.h = html; box.innerHTML = html; }
+}
+function smartOpened() {
+  const panel = $('panel-smart'); if (!panel || !panel.dataset.grouped) return;
+  const before = sgAvail().join();
+  smartSort(); if (sgAvail().join() !== before) sgPaint();
+  sgPick(settings.sgSel || '', false, true); sgHub(); sgFavs(); smartSuggest();
+  const o = $('so-orbit'); if (o) { o.classList.remove('so-in'); void o.offsetWidth; o.classList.add('so-in'); }
 }
 function smartSuggest() {
   const box = $('smart-sug'); if (!box) return;
@@ -22912,9 +23007,70 @@ function initPart16b() {
 .fx-cat-h{display:flex;align-items:center;gap:8px;width:100%;padding:9px 12px;font-size:13px}.fx-cat-h span{font-size:18px}.fx-cat-h b{flex:1;text-align:right}.fx-cat-h small{opacity:.6;font-size:11px}.fx-cat-h i{font-style:normal;transition:transform .2s;opacity:.7}
 .fx-cat>.fx-grid{display:none;padding:0 8px 9px}.fx-cat.open>.fx-grid{display:grid}.fx-cat.open .fx-cat-h i{transform:rotate(180deg)}
 #fx-list{max-height:min(62vh,560px);overflow-y:auto;overscroll-behavior:contain;margin-top:6px}
-.sg-sec{margin-bottom:8px;border-radius:14px;border:1px solid color-mix(in srgb,var(--c,#888) 22%,transparent)}
-.sg-h{display:flex;align-items:center;gap:7px;width:100%;padding:7px 10px;font-size:12.5px}.sg-h b{flex:1;text-align:right}.sg-h small{opacity:.6}.sg-h i{font-style:normal;opacity:.7;transition:transform .2s}
-.sg-sec.closed .sg-grid{display:none}.sg-sec.closed .sg-h i{transform:rotate(90deg)}.sg-grid{padding:0 6px 7px}
+@media (min-width:640px){#panel-smart.so-panel{width:400px}}
+#panel-smart.so-panel{overscroll-behavior:contain;max-height:min(86vh,820px)!important;background-image:radial-gradient(120% 60% at 50% 0%,rgba(212,175,55,.13),transparent 60%)}
+#panel-smart .so-head{margin-bottom:10px}#smart-groups{display:flex;flex-direction:column;gap:12px}
+.so-q{display:flex;align-items:center;gap:8px;height:42px;padding:0 12px;border-radius:99px;background:rgba(255,255,255,.06);border:1px solid rgba(212,175,55,.28);transition:border-color .2s,box-shadow .2s}
+.so-q:focus-within{border-color:rgba(245,210,122,.7);box-shadow:0 0 0 3px rgba(212,175,55,.15)}
+.so-q i{font-style:normal;opacity:.7;font-size:14px}.so-q input{flex:1;min-width:0;background:transparent;border:0;outline:0;color:#f5ead7;font:inherit;font-size:16px}
+.so-q input::-webkit-search-cancel-button{display:none}.so-qx{width:26px;height:26px;border-radius:99px;font-size:11px;color:#f5d27a;background:rgba(255,255,255,.08);display:none}
+.so-search .so-qx{display:block}
+.so-top{position:relative}
+.so-orbit{position:relative;width:100%;max-width:330px;margin:0 auto;aspect-ratio:1/.8;contain:layout paint}
+.so-ring{position:absolute;inset:11% 13.5%;border-radius:50%;border:1px dashed rgba(212,175,55,.32)}
+.so-ring2{inset:27% 30%;border:1px solid rgba(212,175,55,.12);border-style:solid}
+.so-hub{position:absolute;left:50%;top:50%;width:32%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;padding:5px;display:block;box-shadow:0 10px 30px rgba(0,0,0,.45),0 0 40px rgba(212,175,55,.12)}
+.so-prog{position:absolute;inset:0;border-radius:50%;background:conic-gradient(#f5d27a 0 var(--p,0%),rgba(255,255,255,.09) 0);transition:--p .6s}
+.so-hub-in{position:relative;width:100%;height:100%;border-radius:50%;background:radial-gradient(circle at 35% 30%,#2c1d10,#160e07);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:8px;gap:1px}
+.so-hub-in b{font-size:11px;color:#f5d27a;line-height:1.25;max-width:100%;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.so-hub-in strong{font-size:21px;font-weight:900;line-height:1.15;color:#fff7e6}.so-hub-in small{font-size:10px;opacity:.65}
+.so-hub:active{transform:translate(-50%,-50%) scale(.96)}
+.so-planet{position:absolute;left:var(--x);top:var(--y);width:13%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 32% 28%,color-mix(in srgb,var(--c) 30%,#2a1c10),#170f08 75%);border:2px solid color-mix(in srgb,var(--c) 75%,transparent);box-shadow:0 6px 16px rgba(0,0,0,.4);transition:width .3s cubic-bezier(.3,1.4,.5,1),box-shadow .3s,background .3s;-webkit-tap-highlight-color:transparent}
+.so-planet span{font-size:clamp(16px,5.2vw,22px);line-height:1;transition:transform .3s}
+.so-planet.on{width:16.5%;background:radial-gradient(circle at 32% 28%,color-mix(in srgb,var(--c) 70%,#fff3),color-mix(in srgb,var(--c) 35%,#1d140c) 80%);box-shadow:0 0 0 4px color-mix(in srgb,var(--c) 22%,transparent),0 0 28px color-mix(in srgb,var(--c) 70%,transparent);z-index:2}
+.so-planet.on span{transform:scale(1.18)}
+.so-planet:active{filter:brightness(1.25)}
+.so-in .so-planet{animation:soOut .55s cubic-bezier(.2,1.3,.4,1) both;animation-delay:var(--d)}
+.so-in .so-hub{animation:soHub .5s cubic-bezier(.2,1.2,.4,1) both}
+@keyframes soOut{from{left:50%;top:50%;opacity:0;transform:translate(-50%,-50%) scale(.3)}}
+@keyframes soHub{from{opacity:0;transform:translate(-50%,-50%) scale(.6)}}
+.so-cap{margin:0 auto;width:max-content;display:flex;align-items:center;gap:6px;padding:4px 12px;border-radius:99px;font-size:12px;white-space:nowrap;background:color-mix(in srgb,var(--c) 22%,rgba(20,12,6,.85));border:1px solid color-mix(in srgb,var(--c) 55%,transparent);color:#fff7e6}
+.so-sug:empty{display:none}
+.so-favs{display:flex;align-items:center;gap:10px}.so-favs>span{flex:none;font-size:11px;color:#c9b89a}
+.so-favrow,.so-track{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;scroll-snap-type:x proximity}
+.so-favrow::-webkit-scrollbar,.so-track::-webkit-scrollbar{display:none}
+.so-fav{flex:none;width:48px;display:flex;flex-direction:column;align-items:center;gap:3px;scroll-snap-align:start}
+.so-fav span{width:44px;height:44px;border-radius:50%;display:grid;place-items:center;font-size:20px;background:radial-gradient(circle at 30% 25%,#4a3320,#21160d);border:2px solid #d4af37;box-shadow:0 4px 12px rgba(0,0,0,.35);transition:transform .15s}
+.so-fav:active span{transform:scale(.9)}
+.so-fav b{font-size:9.5px;font-weight:600;max-width:52px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.85}
+.so-addfav span{border-style:dashed;background:transparent;color:#f5d27a;font-size:18px}
+.so-shelves{display:flex;flex-direction:column;gap:14px;border-top:1px solid rgba(212,175,55,.16);padding-top:12px}
+.so-shelf.so-none{display:none}
+.so-h{display:flex;align-items:center;gap:7px;width:100%;padding:0 2px 7px;font-size:13.5px;text-align:right}
+.so-h b{font-weight:800}.so-h small{font-size:11px;opacity:.6}.so-h em{margin-inline-start:auto;font-style:normal;font-size:11.5px;color:#f5d27a;opacity:.85}
+.so-dot{width:9px;height:9px;flex:none;border-radius:50%;background:var(--c);box-shadow:0 0 8px var(--c)}
+#panel-smart .so-track .smart-tile{flex:none;width:90px;min-height:100px;padding:10px 8px;border-radius:16px;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:6px;text-align:right;font-size:11.5px;font-weight:700;line-height:1.35;color:#fff3dc;background:linear-gradient(165deg,color-mix(in srgb,var(--c) 30%,#2a1b0e),#1a1109 78%);border:1px solid color-mix(in srgb,var(--c) 28%,rgba(255,255,255,.06));box-shadow:0 6px 14px rgba(0,0,0,.28);scroll-snap-align:start;transition:transform .14s,filter .14s;transform:none}
+#panel-smart .so-track .smart-tile span{font-size:23px;line-height:1}
+#panel-smart .so-track .smart-tile:active{transform:scale(.95);filter:brightness(1.15)}
+#panel-smart .so-track .smart-tile:hover{filter:brightness(1.12)}
+.so-shelf.cur{margin:0 -6px;padding:12px 8px 12px;border-radius:22px;background:linear-gradient(170deg,color-mix(in srgb,var(--c) 24%,transparent),rgba(20,12,6,.35) 70%);border:1px solid color-mix(in srgb,var(--c) 45%,transparent);box-shadow:0 0 34px color-mix(in srgb,var(--c) 18%,transparent)}
+.so-shelf.cur .so-h{font-size:16px}.so-shelf.cur .so-h b{color:color-mix(in srgb,var(--c) 55%,#fff)}.so-shelf.cur .so-h em{display:none}
+.so-shelf.cur .so-track{display:grid;grid-auto-flow:column;grid-template-rows:repeat(2,auto);grid-auto-columns:104px;gap:8px}
+#panel-smart .so-shelf.cur .so-track .smart-tile{width:auto;min-height:94px;background:rgba(18,11,6,.7);border-color:color-mix(in srgb,var(--c) 30%,rgba(255,255,255,.08))}
+#panel-smart .so-shelf.cur .so-track .smart-tile span{font-size:26px}
+.so-shelf.cur.so-pop{animation:soPop .45s cubic-bezier(.2,1.2,.4,1)}
+@keyframes soPop{from{opacity:.3;transform:translateY(14px) scale(.98)}}
+.so-search .so-top,.so-search .so-favs,.so-search .so-sug{display:none}
+.so-search .so-shelf{margin:0;padding:0;background:none;border:0;box-shadow:none}
+.so-search .so-track,.so-search .so-shelf.cur .so-track{display:grid;grid-auto-flow:row;grid-template-rows:none;grid-template-columns:repeat(auto-fill,minmax(92px,1fr));overflow:visible}
+#panel-smart .so-search .so-track .smart-tile{width:auto;min-height:84px}.so-search .so-h em{display:none}
+#panel-smart .smart-tile.so-hide,.so-shelf.so-miss{display:none!important}
+.so-empty{text-align:center;font-size:12.5px;opacity:.85;display:flex;flex-direction:column;gap:8px;align-items:center;padding:14px 4px}.so-empty.hidden{display:none}
+.so-more{padding:8px 14px;border-radius:99px;background:rgba(212,175,55,.18);border:1px solid rgba(212,175,55,.45);color:#fde68a;font-size:12.5px}
+.so-more-box{margin-top:14px;border-radius:16px;border:1px solid rgba(212,175,55,.2);background:rgba(20,12,6,.35);padding:4px 10px}
+.so-more-box>summary{cursor:pointer;list-style:none;padding:8px 2px;font-size:12.5px;color:#f3d078}.so-more-box>summary::-webkit-details-marker{display:none}
+.so-more-box[open]>summary{border-bottom:1px solid rgba(212,175,55,.15);margin-bottom:8px}.so-more-box>*:not(summary){margin-bottom:8px}
+@media (prefers-reduced-motion:reduce){.so-in .so-planet,.so-in .so-hub,.so-shelf.cur.so-pop{animation:none}}
 .hd-hide{display:none!important}.hd-fav{font-size:16px}
 .us-sec{margin-bottom:10px;border-radius:16px;background:rgba(20,12,6,.45);border:1px solid rgba(212,175,55,.2);overflow:hidden}
 .us-h{padding:8px 12px;font-size:12.5px;font-weight:800;color:#f3d078;background:rgba(212,175,55,.08)}
@@ -22980,7 +23136,7 @@ function initPart16b() {
   // the ✨ panel: families, search, suggestions
   try { smartRegroup(); } catch (e) { console.warn('smart regroup', e); }
   const sp = $('panel-smart');
-  if (sp) new MutationObserver(() => { if (!sp.classList.contains('hidden') && !sp.classList.contains('translate-x-full')) smartSuggest(); }).observe(sp, { attributes: true, attributeFilter: ['class', 'style'] });
+  if (sp) { let was = false; new MutationObserver(() => { const open = !sp.classList.contains('hidden') && !sp.classList.contains('translate-x-full'); if (open && !was) { try { smartOpened(); } catch (e) { console.warn('smart open', e); } } was = open; }).observe(sp, { attributes: true, attributeFilter: ['class'] }); }
   // header buttons injected later by other features also obey the compact mode
   const hdr = $('shelf-header'); if (hdr) { let t = 0; new MutationObserver(() => { clearTimeout(t); t = setTimeout(hdApply, 80); }).observe(hdr, { childList: true, subtree: true }); }
   sheetSwipe();
