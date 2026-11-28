@@ -14,7 +14,7 @@
   /* 🐞 the very first script: catches every error from the first millisecond, even if the app fails to start */
   (function () {
     var KEY = 'kurdish_errlog_v1', SES = 'kurdish_session_v1', buf = [];
-    window.__APP_BUILD__ = '2026-11-28 00:20';
+    window.__APP_BUILD__ = '2026-11-28 03:47';
     function load() { try { var v = JSON.parse(localStorage.getItem(KEY) || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
     function save(list) { try { localStorage.setItem(KEY, JSON.stringify(list.slice(-300))); } catch (e) { try { localStorage.setItem(KEY, JSON.stringify(list.slice(-60))); } catch (e2) {} } }
     function ctx() { try { return window.__klogCtx ? window.__klogCtx() : ''; } catch (e) { return ''; } }
@@ -8578,6 +8578,7 @@ function initFeatures() {
   try { initPart15a(); } catch (e) { console.error('initPart15a', e); }
   try { initPart15b(); } catch (e) { console.error('initPart15b', e); }
   try { initPart16a(); } catch (e) { console.error('initPart16a', e); }
+  try { initPart18a(); } catch (e) { console.error('initPart18a', e); }
   try { initPart17a(); } catch (e) { console.error('initPart17a', e); }
   try { initPart17b(); } catch (e) { console.error('initPart17b', e); }
   try { initPart17c(); } catch (e) { console.error('initPart17c', e); }
@@ -22313,7 +22314,7 @@ async function aicPrune() { try { const all = await sharedAll('aic|'); if (all.l
 const GT_PREF = ['gemini-3.8-flash-tts', 'gemini-3.8-flash-lite-tts', 'gemini-3.1-flash-tts-preview', 'gemini-2.5-flash-preview-tts', 'gemini-2.5-flash-lite-preview-tts'];
 const GT_VOICES = { n: 'Sulafat', f: 'Kore', f2: 'Leda', m: 'Charon', m2: 'Orus', c: 'Puck', o: 'Gacrux', of: 'Vindemiatrix' };
 const gt = { tok: 0, src: null, models: null, dead: new Set(), next: null, playing: false };
-function gtWanted() { const e = settings.voiceEngine || 'auto'; return (e === 'gemini' || e === 'auto') && !!aiKey() && !settings.aiSaver; }
+function gtWanted() { const e = settings.voiceEngine || 'auto'; return (e === 'gemini' || e === 'auto' || e === 'eleven') && !!aiKey() && !settings.aiSaver; }   // 'eleven' → Gemini is its fallback
 function gtActive() { return gtWanted() && !aiqLocal('tts'); }
 async function gtModels() {
   if (gt.models) return gt.models;
@@ -24366,6 +24367,279 @@ html[dir=ltr] .ir-line{clip-path:inset(0 100% 0 0)}@keyframes irIn{to{opacity:.8
     ai[2].push(['spoilerShield', 'toggle', '🛡️ پاراستن لە سپۆیلەر (AI هیچ لە دوای لاپەڕەکەت ناخوێنێتەوە)', null, true], ['readStyle', 'select', '🎚️ شێوازی خوێندنەوەی دەنگی', Object.entries(VL_STYLE).map(([k, v]) => [k, v[0]]), 'normal']);
     rd[2].push(['sessionDigest', 'toggle', '📝 دوای هەر دانیشتنێک ٣ پرسیار و ٢ کارت', null, true], ['pageSound', 'toggle', '🌧️ دەنگی ژینگە بەپێی ناوەڕۆکی لاپەڕە', null, true], ['bookBrain', 'toggle', '🧬 کاتێک هایلایت دەکەم، پەیوەندی لەگەڵ کتێبەکانی تر پیشان بدە', null, true], ['awayRecap', 'toggle', '⏪ دوای چەند ڕۆژ نەبوون، کورتەی پێشوو پێشنیار بکە', null, true]);
   } catch (e) { console.warn('k17 uset', e); }
+}
+
+/* =====================================================================
+   PART 18a — 🎧 VOICE STUDIO
+   • ElevenLabs (your own free key, Eleven v4 speaks Sorani) — soft voices
+     like «Jessica»; every sentence is made once and kept on the device
+   • more Gemini voices (Aoede, Achernar, Zephyr, Leda…) with ▶ samples
+   • on a computer in Microsoft Edge: Edge's free natural voices
+   ===================================================================== */
+const EL_KEY = 'kurdish_el_key_v1', EL_STATE = 'kurdish_el_state_v1';
+const EL_MODEL = 'eleven_v4', EL_JESSICA = 'cgSgspJ2msm6clMCkdW9';
+const el = { tok: 0, src: null, playing: false, voices: null, sub: null, warned: 0, bypass: 0 };
+const VS_SAMPLE = 'سڵاو، من دەنگی کتێبەکەتم. ئەمشەو چیرۆکێکی جوانت بۆ دەخوێنمەوە.';
+Object.assign(GT_VOICES, { ao: 'Aoede', ac: 'Achernar', ze: 'Zephyr', de: 'Despina', au: 'Autonoe', la: 'Laomedeia', ca: 'Callirrhoe' });
+const GT_VOICE_INFO = [['ac', '🌸 Achernar', 'ئافرەت · نەرم و ناسک'], ['ao', '🍃 Aoede', 'ئافرەت · سووک و گەرم'], ['ze', '✨ Zephyr', 'ئافرەت · ڕووناک'], ['f2', '👧 Leda', 'کچی گەنج'], ['de', '🎀 Despina', 'ئافرەت · نەرم و لووس'], ['au', '☀️ Autonoe', 'ئافرەت · ڕووناک'], ['la', '🎈 Laomedeia', 'ئافرەت · شاد'], ['ca', '☕ Callirrhoe', 'ئافرەت · ئارام'], ['f', '👩 Kore', 'ئافرەت · بەهێز'], ['of', '👵 Vindemiatrix', 'داپیر · هێمن'], ['n', '🎙️ Sulafat', 'گێڕەرەوەی گەرم'], ['m', '👨 Charon', 'پیاو'], ['m2', '🧔 Orus', 'پیاوی قورس'], ['o', '👴 Gacrux', 'باپیر'], ['c', '🧒 Puck', 'منداڵ / شاد']];
+
+/* ---------- ElevenLabs ---------- */
+function elKey() { try { return (localStorage.getItem(EL_KEY) || '').trim(); } catch { return ''; } }
+function elState() { try { return JSON.parse(localStorage.getItem(EL_STATE) || '{}'); } catch { return {}; } }
+function elSetState(p) { lsSafeSet(EL_STATE, JSON.stringify({ ...elState(), ...p })); }
+function elOut() { const s = elState(); return !!(s.outUntil && Date.now() < s.outUntil); }
+function elWanted() { return settings.voiceEngine === 'eleven' && !!elKey(); }
+function elActive(lang) { if (el.bypass || !elWanted() || elOut()) return false; if (settings.elScope === 'ai' && typeof tts !== 'undefined' && tts.active) return false; return !lang || ['ckb', 'ar', 'fa', 'en'].includes(lang); }
+function elVoice() { return settings.elVoice || EL_JESSICA; }
+function elLang(text) { const lat = (String(text).match(/[A-Za-z]/g) || []).length, ara = (String(text).match(/[؀-ۿ]/g) || []).length; if (lat > ara) return 'en'; const l = detectLang(text); return l === 'ckb' ? 'ckb' : l === 'ar' ? 'ar' : l === 'fa' ? 'fa' : 'en'; }
+function elSpeed() { return clamp(settings.ttsRate || 1, 0.7, 1.2); }
+function elErr(status, detail) { const e = new Error((detail && (detail.message || detail.status)) || 'ElevenLabs ' + status); e.status = status; e.el = (detail && detail.status) || ''; return e; }
+async function elFetch(path, opt = {}) {
+  const r = await fetch('https://api.elevenlabs.io' + path, { ...opt, headers: { 'xi-api-key': elKey(), ...(opt.body ? { 'Content-Type': 'application/json' } : {}), ...(opt.headers || {}) } });
+  if (!r.ok) { let d = null; try { const j = await r.json(); d = j.detail || j; } catch {} throw elErr(r.status, typeof d === 'string' ? { message: d } : d); }
+  return r;
+}
+function elPieces(text) {
+  const parts = String(text).replace(/\s+/g, ' ').trim().split(/(?<=[.!?؟۔،,;:])\s+/), out = []; let cur = '';
+  parts.forEach((p) => { if ((cur + ' ' + p).length > 420 && cur) { out.push(cur); cur = p; } else cur = cur ? cur + ' ' + p : p; });
+  if (cur) out.push(cur);
+  return out.flatMap((p) => (p.length <= 600 ? [p] : p.match(/.{1,560}(\s|$)/g) || [p]));
+}
+/** one piece → mp3 + exact word start times. Kept on the device: the same sentence never costs credits twice. */
+async function elSynth(text, voice) {
+  voice = voice || elVoice();
+  const sp = elSpeed(), id = 'elts|' + aiHash(voice + '|' + EL_MODEL + '|' + sp + '|' + text);
+  const hit = await sharedGet(id).catch(() => null);
+  if (hit && hit.mp3) return hit;
+  let r, tries = 0;
+  for (;;) {
+    try {
+      r = await elFetch(`/v1/text-to-speech/${encodeURIComponent(voice)}/with-timestamps?output_format=mp3_44100_128`, { method: 'POST', body: JSON.stringify({ text, model_id: EL_MODEL, language_code: elLang(text), voice_settings: { stability: 0.45, similarity_boost: 0.8, style: 0.15, speed: sp, use_speaker_boost: true } }) });
+      break;
+    } catch (e) { if ((e.status === 429 || e.el === 'too_many_concurrent_requests') && tries++ < 2) { await sleep(1200 * tries); continue; } throw e; }
+  }
+  const j = await r.json(), bin = Uint8Array.from(atob(j.audio_base64 || ''), (c) => c.charCodeAt(0));
+  const al = j.alignment || j.normalized_alignment, words = [];
+  if (al && al.characters) { let inW = false; al.characters.forEach((c, i) => { const sp2 = /\s/.test(c); if (!sp2 && !inW) words.push(al.character_start_times_seconds[i]); inW = !sp2; }); }
+  const rec = { id, mp3: bin.buffer, words, t: Date.now(), n: text.length };
+  sharedPut(rec).catch(() => {});
+  const st = elState(), mk = todayKey().slice(0, 7); elSetState({ used: (st.month === mk ? st.used || 0 : 0) + text.length, month: mk });
+  elPrune();
+  return rec;
+}
+let _elPruneT = 0;
+function elPrune() { if (Date.now() - _elPruneT < 600000) return; _elPruneT = Date.now(); sharedAll('elts|').then((all) => { if (all.length > 600) all.sort((a, b) => a.t - b.t).slice(0, all.length - 500).forEach((x) => sharedDel(x.id)); }).catch(() => {}); }
+async function elPlay(rec, tok, onWordAt) {
+  const ctx = kuAudioCtx(); try { await ctx.resume(); } catch {}
+  const buf = await ctx.decodeAudioData(rec.mp3.slice(0));
+  if (tok !== el.tok) return;
+  return new Promise((resolve) => {
+    const src = ctx.createBufferSource(); src.buffer = buf; src.connect(ctx.destination); el.src = src;
+    src.onended = () => { if (el.src === src) el.src = null; resolve(); };
+    const t0 = ctx.currentTime; src.start();
+    if (onWordAt) (rec.words || []).forEach((s, i) => setTimeout(() => { if (tok === el.tok) onWordAt(i); }, Math.max(0, (s - (ctx.currentTime - t0)) * 1000)));
+  });
+}
+async function elQuotaHit(e) {
+  let until = Date.now() + 864e5;
+  try { const s = await elSubscription(true); if (s && s.next_character_count_reset_unix) until = s.next_character_count_reset_unix * 1000; } catch {}
+  elSetState({ outUntil: until, why: 'quota' });
+  showToast(`🎧 کرێدیتی ئەم مانگەی ElevenLabs تەواو بوو (تا ${new Date(until).toLocaleDateString('ckb-IQ')}) — بە دەنگی Gemini بەردەوام دەبم`, 'info');
+}
+/** speak with ElevenLabs; trouble → the rest continues with the previous engine (Gemini → local) */
+function elSpeak(text, onend, onword, fallback) {
+  const tok = ++el.tok; el.playing = true; kuv.playing = true;
+  const pieces = elPieces(text);
+  (async () => {
+    let wordBase = 0;
+    for (let i = 0; i < pieces.length; i++) {
+      if (tok !== el.tok) return;
+      const cur = elSynth(pieces[i]); if (i + 1 < pieces.length) elSynth(pieces[i + 1]).catch(() => {});
+      kuCaptionShow(true); kuCaptionWaiting(pieces[i]);
+      let rec;
+      try { rec = await cur; } catch (e) {
+        if (tok !== el.tok) return;
+        el.playing = false; kuv.playing = false; kuCaptionShow(false);
+        console.warn('elevenlabs', e.status, e.el, e.message);
+        const rest = pieces.slice(i).join(' '), fb = () => { el.bypass++; try { fallback(rest, onend, onword ? (w) => onword(wordBase + w) : null); } finally { el.bypass--; } };
+        if (e.el === 'quota_exceeded' || /quota/i.test(e.message)) { await elQuotaHit(e); fb(); return; }
+        if (e.el === 'invalid_api_key' || e.el === 'missing_permissions' || (e.status === 401 && !e.el)) { showToast('🎧 کلیلی ElevenLabs هەڵەیە — لە 🎧 ستۆدیۆی دەنگ دووبارە دایبنێ', 'error'); elSetState({ outUntil: Date.now() + 600e3, why: 'key' }); fb(); return; }
+        if (e.el === 'detected_unusual_activity') { showToast('🎧 ElevenLabs داواکارییەکەی ڕاگرت (VPN یان پرۆکسی؟) — بە Gemini بەردەوام دەبم', 'error'); elSetState({ outUntil: Date.now() + 3600e3, why: 'block' }); fb(); return; }
+        if (Date.now() - el.warned > 60000) { el.warned = Date.now(); showToast('🎧 ElevenLabs نەگەیشت — بە دەنگی تر بەردەوام دەبم', 'info'); }
+        fb(); return;
+      }
+      if (tok !== el.tok) return;
+      const cap = $('ku-caption'); if (cap && settings.kuCaption !== false) cap.textContent = pieces[i];
+      const base = wordBase, n = pieces[i].split(/\s+/).filter(Boolean).length;
+      try { await elPlay(rec, tok, onword ? (w) => { if (w < n) onword(base + w); } : null); } catch (e) { console.warn('el play', e); }
+      wordBase += n;
+      if (i < pieces.length - 1) await sleep(120);
+    }
+    if (tok !== el.tok) return;
+    el.playing = false; kuv.playing = false; kuCaptionShow(false);
+    if (onend) onend();
+  })();
+  return { lang: 'el', voice: 'elevenlabs' };
+}
+function elStop() { el.tok++; el.playing = false; if (el.src) { try { el.src.onended = null; el.src.stop(); } catch {} el.src = null; } }
+async function elSubscription(force) {
+  if (!elKey()) return null;
+  if (el.sub && !force && Date.now() - el.sub.at < 120000) return el.sub;
+  try { const r = await elFetch('/v1/user/subscription'); el.sub = { ...(await r.json()), at: Date.now() }; }
+  catch (e) { el.sub = { err: e.el || e.status || 'net', at: Date.now() }; }
+  return el.sub;
+}
+async function elVoices() {
+  if (el.voices) return el.voices;
+  const r = await elFetch('/v1/voices'); const j = await r.json();
+  el.voices = (j.voices || []).map((v) => ({ id: v.voice_id, name: v.name, labels: v.labels || {}, preview: v.preview_url, cat: v.category }));
+  return el.voices;
+}
+
+/* ---------- Edge / system natural voices (computer) ---------- */
+function sysVoicesFor(lang) {
+  const vs = (speechSynthesis.getVoices && speechSynthesis.getVoices()) || [];
+  const codes = lang === 'ckb' ? ['ckb', 'ku', 'fa', 'ar'] : lang === 'fa' ? ['fa', 'ar'] : [lang];
+  return vs.filter((v) => codes.some((c) => (v.lang || '').toLowerCase().replace('_', '-').startsWith(c)));
+}
+function sysNatural(v) { return /Natural|Online|Neural|Premium|Enhanced/i.test(v.name || ''); }
+
+/* ---------- 🎧 studio UI ---------- */
+const VS_ENGINES = [['eleven', '🎧 ElevenLabs', 'دەنگی زۆر ناسک و سروشتی · نزیکەی ١٠ خولەک لە مانگێکدا بەخۆڕایی (کلیلی خۆت)'], ['auto', '🤖 Gemini → ناوخۆ', 'بەخۆڕایی · سنووری ڕۆژانە؛ کاتێک تەواو بوو دەنگی ناوخۆ'], ['gemini', '🤖 تەنها Gemini', 'بەخۆڕایی · سنووری ڕۆژانە'], ['vekol', '🎙️ Vekol', 'ناوخۆ · بێ ئینتەرنێت'], ['system', '🔈 دەنگی ئامێر', 'لە Edge ی کۆمپیوتەر دەنگە سروشتییەکانی Microsoft']];
+async function vsRender() {
+  const B = $('vs-body'); if (!B) return;
+  const eng = settings.voiceEngine || 'auto', key = elKey(), st = elState();
+  B.innerHTML = `<div class="grid gap-1.5">${VS_ENGINES.map(([k, t, d]) => `<button class="vs-eng ${eng === k ? 'on' : ''}" data-vs-eng="${k}"><b>${t}</b><small>${d}</small>${eng === k ? '<i>✓</i>' : ''}</button>`).join('')}</div>
+  <div class="vs-sec">🎧 ElevenLabs</div>
+  <div class="vs-box">
+    ${key ? `<div class="flex items-center gap-2 text-[12.5px]"><span>🔑 کلیل دانراوە</span><span id="vs-el-credit" class="flex-1 text-amber-200/80">…</span><button class="rb !min-h-0 !py-1 !px-2 !text-xs" data-vs-el-del>🗑️</button></div>`
+      : `<p class="text-[12px] leading-relaxed text-amber-100/85">١) لە <b>elevenlabs.io</b> هەژمارێکی بەخۆڕایی دروست بکە · ٢) <b>Developers ← API Keys ← Create</b> · ٣) کلیلەکە لێرە دابنێ. کلیلەکە تەنها لەسەر ئەم ئامێرە دەمێنێت و ناچێتە ناو باکئەپ.</p>
+    <div class="flex gap-2"><input id="vs-el-key" type="password" class="field flex-1 !py-2" placeholder="sk_..." autocomplete="off" dir="ltr"><button class="rb primary !px-4" data-vs-el-save>💾</button></div>`}
+    ${elOut() ? `<div class="tq-warn">${st.why === 'key' ? '🔑 کلیلەکە کاری نەکرد — بۆ ماوەیەک Gemini بەکاردێت.' : st.why === 'block' ? '⛔ ElevenLabs داواکارییەکەی ڕاگرت — بۆ ماوەیەک Gemini بەکاردێت.' : `⏳ کرێدیت تەواوە تا ${escapeHtml(new Date(st.outUntil).toLocaleDateString('ckb-IQ'))} — تا ئەو کاتە Gemini بەکاردێت.`} <button class="underline" data-vs-el-reset>دووبارە هەوڵ بدە</button></div>` : ''}
+    ${key ? `<label class="block text-[12.5px] mt-2">بەکاری بهێنە بۆ: <select id="vs-el-scope" class="field !py-1.5 mt-1"><option value="all">📖 هەموو شتێک (خوێندنەوەی لاپەڕەش)</option><option value="ai">💬 تەنها وەڵام و دێڕە کورتەکان (کرێدیت زۆرتر دەمێنێت)</option></select></label>
+    <div id="vs-el-voices" class="mt-2"><div class="ai-shimmer text-[12px]">دەنگەکان بار دەکرێن...</div></div>` : ''}
+  </div>
+  <div class="vs-sec">🤖 دەنگەکانی Gemini <small class="opacity-70">(▶ = نموونەی کوردی، یەکجار دروست دەبێت)</small></div>
+  <div class="grid grid-cols-2 sm:grid-cols-3 gap-1.5">${GT_VOICE_INFO.map(([k, n, d]) => `<div class="vs-v ${(settings.gtVoice || 'n') === k ? 'on' : ''}"><button class="flex-1 text-right" data-vs-gt="${k}"><b>${n}</b><small>${d}</small></button><button class="vs-play" data-vs-gt-play="${k}">▶</button></div>`).join('')}</div>
+  <div id="vs-sys"></div>
+  <div class="vs-sec">🧪 تاقیکردنەوە</div>
+  <div class="flex gap-2"><input id="vs-test" class="field flex-1 !py-2" value="${escapeHtml(VS_SAMPLE)}" dir="auto"><button class="rb primary !px-4" data-vs-test>▶</button><button class="rb !px-3" data-vs-stop>⏹</button></div>`;
+  if ($('vs-el-scope')) $('vs-el-scope').value = settings.elScope || 'all';
+  if (key) { vsCredit(); vsElVoices(); }
+  vsSys();
+}
+async function vsCredit() {
+  const c = $('vs-el-credit'); if (!c) return;
+  const s = await elSubscription(); if (!$('vs-el-credit')) return;
+  if (s && s.character_limit) { const left = Math.max(0, s.character_limit - s.character_count); c.innerHTML = `💳 ${toKuDigits(left.toLocaleString('en'))} لە ${toKuDigits(s.character_limit.toLocaleString('en'))} پیت ماوە (≈ ${toKuDigits(Math.round(left / 1000))} خولەک)`; }
+  else if (s && s.err === 'invalid_api_key') c.innerHTML = '<span class="text-red-300">⚠️ کلیلەکە هەڵەیە</span>';
+  else { const st = elState(); c.textContent = st.used ? `ئەم مانگە ≈ ${toKuDigits(st.used)} پیت بەکارهاتووە` : 'ئامادەیە'; }
+}
+async function vsElVoices() {
+  const B = $('vs-el-voices'); if (!B) return;
+  try {
+    const L = await elVoices(), cur = elVoice();
+    const fem = L.filter((v) => /female|woman/i.test(v.labels.gender || '')), rest = L.filter((v) => !fem.includes(v));
+    const list = [...fem, ...rest].sort((a, b) => (b.id === EL_JESSICA) - (a.id === EL_JESSICA));
+    B.innerHTML = `<div class="text-[11.5px] text-amber-200/75 mb-1">دەنگێک هەڵبژێرە (▶ نموونەی ئینگلیزی بەخۆڕایییە · 🗣️ نموونەی کوردی ~٦٠ پیت)</div><div class="grid gap-1.5 max-h-[34vh] overflow-y-auto">${list.map((v) => `<div class="vs-v ${v.id === cur ? 'on' : ''}"><button class="flex-1 text-right" data-vs-el="${escapeHtml(v.id)}"><b dir="ltr">${escapeHtml(v.name)}</b><small>${escapeHtml([v.labels.gender, v.labels.age, v.labels.accent, v.labels.description || v.labels.descriptive].filter(Boolean).join(' · '))}</small></button>${v.preview ? `<button class="vs-play" data-vs-el-prev="${escapeHtml(v.preview)}">▶</button>` : ''}<button class="vs-play" data-vs-el-ku="${escapeHtml(v.id)}">🗣️</button></div>`).join('')}</div>`;
+  } catch (e) {
+    B.innerHTML = `<div class="tq-warn">${e.el === 'invalid_api_key' || e.status === 401 ? '⚠️ کلیلەکە کار ناکات — دڵنیابە کە دروست کۆپیت کردووە' : '⚠️ پەیوەندی بە ElevenLabs ـەوە نەکرا: ' + escapeHtml(e.message || '')}</div>`;
+  }
+}
+function vsSys() {
+  const B = $('vs-sys'); if (!B) return;
+  const L = ['ckb', 'ar', 'en'].map((lang) => [lang, sysVoicesFor(lang)]);
+  const any = L.some(([, v]) => v.some(sysNatural));
+  if (!any && settings.voiceEngine !== 'system') { B.innerHTML = ''; return; }
+  const nm = { ckb: 'کوردی', ar: 'عەرەبی', en: 'ئینگلیزی' };
+  B.innerHTML = `<div class="vs-sec">🔈 دەنگەکانی ئەم ئامێرە ${any ? '<small class="text-emerald-300">· دەنگی سروشتی (Natural) هەیە ✓</small>' : ''}</div>${L.map(([lang, vs]) => vs.length ? `<label class="block text-[12px] mb-1.5">${nm[lang]} <select class="field !py-1.5 mt-0.5" data-vs-sys="${lang}"><option value="">خۆکار (باشترین)</option>${vs.map((v) => `<option value="${escapeHtml(v.voiceURI)}" ${((settings.sysVoices || {})[lang] === v.voiceURI) ? 'selected' : ''}>${sysNatural(v) ? '⭐ ' : ''}${escapeHtml(v.name)}</option>`).join('')}</select></label>` : '').join('')}<p class="text-[11px] text-amber-200/60">ئاگاداربە: دەنگی فارسی (وەک Dilara) پیتەکانی ێ ۆ ڕ ڵ بە تەواوی ناخوێنێتەوە.</p>`;
+}
+let vsAudio = null;
+function vsPreview(url) { try { if (vsAudio) vsAudio.pause(); vsAudio = new Audio(url); vsAudio.play().catch(() => showToast('▶ لێدان نەکرا', 'error')); } catch {} }
+async function vsGtSample(k, btn) {
+  if (!aiReady()) { showToast('بۆ دەنگی Gemini کلیلی Gemini پێویستە', 'info'); return; }
+  try { stopAllSpeech(); } catch {}
+  btn.textContent = '⏳';
+  try { const r = await gtSynth(VS_SAMPLE, GT_VOICES[k]); const tok = ++gt.tok; await gtPlay(r, tok); }
+  catch (e) { showToast((e && (e.daily || aiqIsDaily(e))) ? '📊 دەنگی Gemini بۆ ئەمڕۆ تەواوە' : '🎙️ نموونە نەگەیشت', 'error'); }
+  finally { btn.textContent = '▶'; }
+}
+async function vsElKu(id, btn) {
+  try { stopAllSpeech(); } catch {}
+  btn.textContent = '⏳';
+  try { const rec = await elSynth(VS_SAMPLE, id); const tok = ++el.tok; await elPlay(rec, tok); vsCredit(); }
+  catch (e) { showToast(e.el === 'quota_exceeded' ? '🎧 کرێدیت تەواوە' : '🎧 ' + (e.message || 'نەگەیشت'), 'error'); }
+  finally { btn.textContent = '🗣️'; }
+}
+function openVoices() { closeAllPanels(); openModal('modal-vs'); vsRender(); }
+
+function initPart18a() {
+  p11Add(`
+.vs-eng{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:right;padding:8px 12px;border-radius:14px;background:rgba(0,0,0,.18);border:1px solid rgba(212,175,55,.22)}
+.vs-eng b{font-size:13.5px}.vs-eng small{font-size:11px;opacity:.72}.vs-eng.on{border-color:#fbbf24;background:rgba(251,191,36,.12)}.vs-eng i{position:absolute;left:12px;top:50%;transform:translateY(-50%);font-style:normal;color:#fbbf24}
+.vs-sec{font-weight:800;color:#fde68a;font-size:13px;margin:12px 0 6px}.vs-box{border:1px solid rgba(212,175,55,.22);border-radius:14px;padding:10px;background:rgba(0,0,0,.12)}
+.vs-v{display:flex;align-items:center;gap:6px;padding:6px 8px;border-radius:12px;background:rgba(0,0,0,.18);border:1px solid rgba(212,175,55,.18)}.vs-v.on{border-color:#fbbf24;background:rgba(251,191,36,.12)}
+.vs-v b{display:block;font-size:12.5px}.vs-v small{display:block;font-size:10.5px;opacity:.7}.vs-play{min-width:32px;height:32px;border-radius:99px;background:rgba(212,175,55,.15);border:1px solid rgba(212,175,55,.4);flex:none}`,
+  p11Modal('modal-vs', '🎧 ستۆدیۆی دەنگ', '<div id="vs-body"></div>', true));
+  KB_SECRET.push(EL_KEY);
+
+  // ElevenLabs sits under the voice lab (17a) and over Gemini (16a): taught pronunciations still apply
+  const pS = speakText; speakText = function (text, onend, onword) {
+    if (elActive(detectLang(text))) return elSpeak(text, onend, onword, (t, e, w) => pS.call(this, t, e, w));
+    return pS.apply(this, arguments);
+  };
+  const pK = kuSpeak; kuSpeak = function (text, onend, onword) {
+    if (elActive('ckb')) return elSpeak(text, onend, onword, (t, e, w) => pK.call(this, t, e, w));
+    return pK.apply(this, arguments);
+  };
+  const pA = kuVoiceActive; kuVoiceActive = function () { return elActive('ckb') || pA.apply(this, arguments); };
+  const pSt = kuStop; kuStop = function () { elStop(); return pSt.apply(this, arguments); };
+  const pAll = stopAllSpeech; stopAllSpeech = function () { elStop(); return pAll.apply(this, arguments); };
+  if (typeof kuPrefetch === 'function') { const pP = kuPrefetch; kuPrefetch = function (text) { if (elActive(detectLang(text))) { elSynth(elPieces(text)[0] || text).catch(() => {}); return; } return pP.apply(this, arguments); }; }
+  // system / Edge voices: your choice, else the natural one
+  const pV = pickVoice; pickVoice = function (lang) {
+    const want = (settings.sysVoices || {})[lang], vs = sysVoicesFor(lang);
+    if (want) { const v = vs.find((x) => x.voiceURI === want); if (v) return v; }
+    const nat = vs.find(sysNatural); return nat || pV.apply(this, arguments);
+  };
+  const pAb = typeof abSpeaking === 'function' ? abSpeaking : null; if (pAb) abSpeaking = function () { return el.playing || pAb(); };
+
+  $('modal-vs').addEventListener('click', async (e) => {
+    const t = e.target;
+    const en = t.closest('[data-vs-eng]'); if (en) { const k = en.dataset.vsEng; if (k === 'eleven' && !elKey()) showToast('🎧 سەرەتا کلیلی ElevenLabs لە خوارەوە دابنێ', 'info'); settings.voiceEngine = k; saveSettings(); try { stopAllSpeech(); } catch {} vsRender(); return; }
+    if (t.closest('[data-vs-el-save]')) {
+      const v = ($('vs-el-key').value || '').trim(); if (v.length < 20) { showToast('کلیلەکە کورتە — دووبارە کۆپی بکە', 'error'); return; }
+      lsSafeSet(EL_KEY, v); el.voices = null; el.sub = null; elSetState({ outUntil: 0, why: '' });
+      if (!settings.voiceEngine || settings.voiceEngine === 'auto' || settings.voiceEngine === 'gemini') { settings.voiceEngine = 'eleven'; saveSettings(); }
+      showToast('🎧 کلیلی ElevenLabs دانرا — دەنگی Jessica هەڵبژێردرا', 'success'); vsRender(); return;
+    }
+    if (t.closest('[data-vs-el-del]')) { if (await confirmDialog({ title: '🗑️ کلیلی ElevenLabs بسڕمەوە؟', message: 'دەنگەکە دەگەڕێتەوە سەر Gemini.', okText: 'سڕینەوە', danger: true })) { localStorage.removeItem(EL_KEY); if (settings.voiceEngine === 'eleven') { settings.voiceEngine = 'auto'; saveSettings(); } vsRender(); } return; }
+    if (t.closest('[data-vs-el-reset]')) { elSetState({ outUntil: 0 }); vsRender(); return; }
+    const ev = t.closest('[data-vs-el]'); if (ev) { settings.elVoice = ev.dataset.vsEl; saveSettings(); document.querySelectorAll('#vs-el-voices .vs-v').forEach((x) => x.classList.toggle('on', x.contains(ev))); showToast('🎧 ' + ev.querySelector('b').textContent, 'success'); return; }
+    const pv = t.closest('[data-vs-el-prev]'); if (pv) { vsPreview(pv.dataset.vsElPrev); return; }
+    const ku = t.closest('[data-vs-el-ku]'); if (ku) { vsElKu(ku.dataset.vsElKu, ku); return; }
+    const gv = t.closest('[data-vs-gt]'); if (gv) { settings.gtVoice = gv.dataset.vsGt; saveSettings(); document.querySelectorAll('#vs-body .vs-v').forEach((x) => { if (x.querySelector('[data-vs-gt]')) x.classList.toggle('on', x.contains(gv)); }); showToast('🤖 ' + gv.querySelector('b').textContent, 'success'); return; }
+    const gp = t.closest('[data-vs-gt-play]'); if (gp) { vsGtSample(gp.dataset.vsGtPlay, gp); return; }
+    if (t.closest('[data-vs-test]')) { try { stopAllSpeech(); } catch {} speakText($('vs-test').value || VS_SAMPLE, null, null); return; }
+    if (t.closest('[data-vs-stop]')) { try { stopAllSpeech(); } catch {} try { vsAudio && vsAudio.pause(); } catch {} }
+  });
+  $('modal-vs').addEventListener('change', (e) => {
+    if (e.target.id === 'vs-el-scope') { settings.elScope = e.target.value; saveSettings(); }
+    const s = e.target.closest('[data-vs-sys]'); if (s) { settings.sysVoices = { ...(settings.sysVoices || {}), [s.dataset.vsSys]: s.value }; saveSettings(); }
+  });
+  MODAL_ON_CLOSE['modal-vs'] = () => { try { vsAudio && vsAudio.pause(); } catch {} };
+  try { speechSynthesis.addEventListener && speechSynthesis.addEventListener('voiceschanged', () => { if (!$('modal-vs').classList.contains('hidden')) vsSys(); }); } catch {}
+
+  // ⚙️ + ✨
+  try {
+    const ai = USET.find((x) => x[0] === 'ai'), ve = ai[2].find((x) => x[0] === 'voiceEngine'), gv = ai[2].find((x) => x[0] === 'gtVoice');
+    if (ve && !ve[3].some((o) => o[0] === 'eleven')) ve[3].unshift(['eleven', '🎧 ElevenLabs (ناسک · کلیلی خۆت)']);
+    if (gv) GT_VOICE_INFO.forEach(([k, n, d]) => { if (!gv[3].some((o) => o[0] === k)) gv[3].push([k, `${n} — ${d}`]); });
+  } catch (e) { console.warn('vs uset', e); }
+  FX.push({ id: 'vs', ic: '🎧', t: 'ستۆدیۆی دەنگ — ElevenLabs، دەنگە ناسکەکانی Gemini، Edge', cat: 'listen', run: () => openVoices(), book: 0, kw: 'voice studio elevenlabs jessica gemini aoede kore edge natural دەنگ ناسک' });
+  const sec = [...document.querySelectorAll('#panel-smart .smart-sec')].find((x) => /تێگەیشتن و بیرەوەری/.test(x.textContent));
+  const grid = (sec && sec.nextElementSibling) || (document.querySelector('#panel-smart .smart-tile') || {}).parentElement;
+  if (grid) { grid.insertAdjacentHTML('beforeend', '<button id="smart-vs" class="smart-tile"><span>🎧</span>ستۆدیۆی دەنگ</button>'); $('smart-vs').addEventListener('click', () => { closeAllPanels(); openVoices(); }); }
 }
 
 if (document.readyState === 'loading') window.addEventListener('DOMContentLoaded', boot);

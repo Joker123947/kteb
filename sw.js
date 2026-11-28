@@ -1,7 +1,7 @@
 /* Service worker — the reader works fully offline once opened over http(s).
    The page itself: network first (so every new version you upload is used at once), the saved copy when offline.
    Everything else: the saved copy first, refreshed in the background. */
-const CACHE = 'kurdish-reader-202611280020';
+const CACHE = 'kurdish-reader-202611280347';
 const CORE = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './apple-touch-icon.png'];
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(CORE.map((u) => new Request(u, { cache: 'reload' })))).catch(() => {}).then(() => self.skipWaiting()));
